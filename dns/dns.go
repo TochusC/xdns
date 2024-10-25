@@ -1,6 +1,6 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
-// 该文件定义了 DNS 协议的主要消息结构。
+// dns.go 文件定义了 DNS 协议的主要消息结构。
 package dns
 
 import (
@@ -28,10 +28,10 @@ type DNS struct {
 	// DNS 消息头部
 	Header DNSHeader // DNS 头部（Header）
 	// DNS消息的各个部分（Section）
-	Questions   []DNSQuestion       // DNS 查询部分（Questions Section）
-	Answers     []DNSResourceRecord // DNS 回答部分（Answers Section）
-	Authorities []DNSResourceRecord // DNS 权威部分（Authorities Section）
-	Additionals []DNSResourceRecord // DNS 附加部分（Additonal Section）
+	Question   DNSQuestionSection // DNS 查询部分（Questions Section）
+	Answer     DNSResponseSection // DNS 回答部分（Answers Section）
+	Authority  DNSResponseSection // DNS 权威部分（Authority Section）
+	Additional DNSResponseSection // DNS 附加部分（Additional Section）
 }
 
 //  DNS 头部 编码格式
@@ -62,14 +62,30 @@ type DNSHeader struct {
 	RA bool  // 递归可用标志（Recursion Available）
 	Z  uint8 // 保留字段
 
-	ResponseCode DNSResponseCode // 响应码
-	QDCount      uint16          // 问题部分的条目数量
-	ANCount      uint16          // 回答部分的资源记录数量
-	NSCount      uint16          // 权威部分的资源记录数量
-	ARCount      uint16          // 附加部分的资源记录数量
+	RCode   DNSResponseCode // 响应码
+	QDCount uint16          // 问题部分的条目数量
+	ANCount uint16          // 回答部分的资源记录数量
+	NSCount uint16          // 权威部分的资源记录数量
+	ARCount uint16          // 附加部分的资源记录数量
 }
 
-// DNSQuestion 表示DNS查询的问题部分。
+// DNS 问题 编码格式
+//  0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                                               |
+//  /                                               /
+//  /                      NAME                     /
+//  |                                               |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                      TYPE                     |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+//  |                     CLASS                     |
+//  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+// DNSQuestionSection 表示DNS查询的问题部分
+type DNSQuestionSection []DNSQuestion
+
+// DNSQuestion 表示DNS查询的问题记录
 type DNSQuestion struct {
 	Name  string
 	Type  DNSRRType
@@ -97,6 +113,9 @@ type DNSQuestion struct {
 //  /                                               /
 //  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
+// DNSResponseSection 表示DNS响应的资源记录部分
+type DNSResponseSection []DNSResourceRecord
+
 // DNSResourceRecord 表示 DNS 资源记录。
 type DNSResourceRecord struct {
 	Name  string
@@ -109,32 +128,32 @@ type DNSResourceRecord struct {
 
 // Size 返回DNS层的*准确（也是实际上的）*大小
 // 错误的字段值不会影响Size的计算。
-func (d *DNS) Size() int {
-	size := d.Header.Size()
-	for _, question := range d.Questions {
+func (dns *DNS) Size() int {
+	size := dns.Header.Size()
+	for _, question := range dns.Question {
 		size += question.Size()
 	}
-	for _, answer := range d.Answers {
+	for _, answer := range dns.Answer {
 		size += answer.Size()
 	}
-	for _, authority := range d.Authorities {
+	for _, authority := range dns.Authority {
 		size += authority.Size()
 	}
-	for _, additional := range d.Additionals {
+	for _, additional := range dns.Additional {
 		size += additional.Size()
 	}
 	return size
 }
 
-func (d *DNS) String() string {
+func (dns *DNS) String() string {
 	return fmt.Sprint(
 		"### DNS Message ###\n",
-		d.Header,
-		d.Questions,
-		d.Answers,
-		d.Authorities,
-		d.Additionals,
-		"### End of DNS Message ###\n",
+		dns.Header.String(),
+		dns.Question.String(),
+		dns.Answer.String(),
+		dns.Authority.String(),
+		dns.Additional.String(),
+		"### End of DNS Message ###]",
 	)
 }
 
@@ -144,52 +163,43 @@ func (dns *DNS) Encode() []byte {
 	// 编码头部
 	offset, err := dns.Header.EncodeToBuffer(bytesArray)
 	if err != nil {
-		fmt.Println("DNS Encode Error:\n", err)
+		fmt.Println("DNS Encode Error(Header):\n", err)
 		os.Exit(1)
 	}
 
 	// 编码查询部分
-	for _, question := range dns.Questions {
-		increment, err := question.EncodeToBuffer(bytesArray[offset:])
-		offset += increment
-		if err != nil {
-			fmt.Println("DNS Encode Error:\n", err)
-			os.Exit(1)
-		}
+	increment, err := dns.Question.EncodeToBuffer(bytesArray[offset:])
+	offset += increment
+	if err != nil {
+		fmt.Println("DNS Encode Error(Question Section):\n", err)
+		os.Exit(1)
 	}
-
 	// 编码回答部分
-	for _, answer := range dns.Answers {
-		increment, err := answer.EncodeToBuffer(bytesArray[offset:])
-		offset += increment
-		if err != nil {
-			fmt.Println("DNS Encode Error:\n", err)
-			os.Exit(1)
-		}
+	increment, err = dns.Answer.EncodeToBuffer(bytesArray[offset:])
+	offset += increment
+	if err != nil {
+		fmt.Println("DNS Encode Error(Answer Section):\n", err)
+		os.Exit(1)
 	}
 
 	// 编码权威部分
-	for _, authority := range dns.Authorities {
-		increment, err := authority.EncodeToBuffer(bytesArray[offset:])
-		offset += increment
-		if err != nil {
-			fmt.Println("DNS Encode Error:\n", err)
-			os.Exit(1)
-		}
+	increment, err = dns.Authority.EncodeToBuffer(bytesArray[offset:])
+	offset += increment
+	if err != nil {
+		fmt.Println("DNS Encode Error(Authority Section):\n", err)
+		os.Exit(1)
 	}
 
 	// 编码附加部分
-	for _, additional := range dns.Additionals {
-		increment, err := additional.EncodeToBuffer(bytesArray[offset:])
-		offset += increment
-		if err != nil {
-			fmt.Println("DNS Encode Error:\n", err)
-			os.Exit(1)
-		}
+	increment, err = dns.Additional.EncodeToBuffer(bytesArray[offset:])
+	offset += increment
+	if err != nil {
+		fmt.Println("DNS Encode Error(Additional Section):\n", err)
+		os.Exit(1)
 	}
 
 	// 编码完成⚡
-	return nil
+	return bytesArray
 }
 
 // EncodeToBuffer 将DNS层编码到传入的缓冲区中。
@@ -204,7 +214,7 @@ func (dns *DNS) EncodeToBuffer(buffer []byte) (int, error) {
 	}
 
 	// 编码查询部分
-	for _, question := range dns.Questions {
+	for _, question := range dns.Question {
 		increment, err := question.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
@@ -213,7 +223,7 @@ func (dns *DNS) EncodeToBuffer(buffer []byte) (int, error) {
 	}
 
 	// 编码回答部分
-	for _, answer := range dns.Answers {
+	for _, answer := range dns.Answer {
 		increment, err := answer.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
@@ -222,7 +232,7 @@ func (dns *DNS) EncodeToBuffer(buffer []byte) (int, error) {
 	}
 
 	// 编码权威部分
-	for _, authority := range dns.Authorities {
+	for _, authority := range dns.Authority {
 		increment, err := authority.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
@@ -231,7 +241,7 @@ func (dns *DNS) EncodeToBuffer(buffer []byte) (int, error) {
 	}
 
 	// 编码附加部分
-	for _, additional := range dns.Additionals {
+	for _, additional := range dns.Additional {
 		increment, err := additional.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
@@ -261,12 +271,12 @@ func (dns *DNSHeader) String() string {
 		"RD: ", dns.RD, "\n",
 		"RA: ", dns.RA, "\n",
 		"Z: ", dns.Z, "\n",
-		"ResponseCode: ", dns.ResponseCode, "\n",
+		"RCode: ", dns.RCode, "\n",
 		"QDCount: ", dns.QDCount, "\n",
 		"ANCount: ", dns.ANCount, "\n",
 		"NSCount: ", dns.NSCount, "\n",
 		"ARCount: ", dns.ARCount, "\n",
-		"### End of DNS Header ###\n",
+		"### End of DNS Header ###",
 	)
 }
 
@@ -291,7 +301,7 @@ func (dns *DNSHeader) Encode() []byte {
 	if dns.RA {
 		flags |= 1 << 7
 	}
-	flags |= uint16(dns.ResponseCode) & 0x0f
+	flags |= uint16(dns.RCode) & 0x0f
 	binary.BigEndian.PutUint16(buffer[2:], flags)
 	binary.BigEndian.PutUint16(buffer[4:], dns.QDCount)
 	binary.BigEndian.PutUint16(buffer[6:], dns.ANCount)
@@ -305,6 +315,9 @@ func (dns *DNSHeader) Encode() []byte {
 // - 返回值为 写入字节数 和 错误信息。
 // 如果出现错误，返回 -1 和 相应报错。
 func (dns *DNSHeader) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < 12 {
+		return -1, fmt.Errorf("EncodeToBuffer failed: buffer length %d is less than DNSHeader size 12", len(buffer))
+	}
 	binary.BigEndian.PutUint16(buffer, dns.ID)
 	flags := uint16(0)
 	if dns.QR {
@@ -323,7 +336,7 @@ func (dns *DNSHeader) EncodeToBuffer(buffer []byte) (int, error) {
 	if dns.RA {
 		flags |= 1 << 7
 	}
-	flags |= uint16(dns.ResponseCode) & 0x0f
+	flags |= uint16(dns.RCode) & 0x0f
 	binary.BigEndian.PutUint16(buffer[2:], flags)
 	binary.BigEndian.PutUint16(buffer[4:], dns.QDCount)
 	binary.BigEndian.PutUint16(buffer[6:], dns.ANCount)
@@ -344,16 +357,71 @@ func (dnsQuestion *DNSQuestion) String() string {
 		"Name: ", dnsQuestion.Name, "\n",
 		"Type: ", dnsQuestion.Type, "\n",
 		"Class: ", dnsQuestion.Class, "\n",
-		"### End of DNS Question ###\n",
+		"### End of DNS Question ###",
 	)
+}
+
+// Size 返回DNS查询的问题部分的大小。
+func (section DNSQuestionSection) Size() int {
+	size := 0
+	for _, question := range section {
+		size += question.Size()
+	}
+	return size
+}
+
+// String 以“易读的形式”返回DNS查询的问题部分的字符串表示。
+// - 其返回值为 DNS查询的问题部分的字符串表示。
+func (section DNSQuestionSection) String() string {
+	var result string
+	for _, question := range section {
+		result += question.String() + "\n"
+	}
+	return result
+}
+
+// Encode 将DNS查询的问题部分编码到字节切片中。
+// - 其返回值为 编码后的字节切片。
+func (section DNSQuestionSection) Encode() []byte {
+	bytesArray := make([]byte, section.Size())
+	offset := 0
+	for _, question := range section {
+		increment, err := question.EncodeToBuffer(bytesArray[offset:])
+		offset += increment
+		if err != nil {
+			fmt.Println("DNSQuestionSection Encode Error:\n", err)
+			os.Exit(1)
+		}
+	}
+	return bytesArray
+}
+
+// EncodeToBuffer 将DNS查询的问题部分编码到传入的缓冲区中。
+// - 其接收参数：缓冲区
+// - 返回值为 写入字节数 和 错误信息。
+// 如果出现错误，返回 -1 和 相应报错。
+func (section DNSQuestionSection) EncodeToBuffer(buffer []byte) (int, error) {
+	offset := 0
+	for _, question := range section {
+		increment, err := question.EncodeToBuffer(buffer[offset:])
+		offset += increment
+		if err != nil {
+			return -1, err
+		}
+	}
+	return offset, nil
 }
 
 // Encode 将DNS查询的问题部分编码到字节切片中。
 func (dnsQuestion *DNSQuestion) Encode() []byte {
 	buffer := make([]byte, dnsQuestion.Size())
-	_, _ = EncodeDomainNameToBuffer(&dnsQuestion.Name, buffer)
-	binary.BigEndian.PutUint16(buffer[len(buffer)-4:], uint16(dnsQuestion.Type))
-	binary.BigEndian.PutUint16(buffer[len(buffer)-2:], uint16(dnsQuestion.Class))
+	offset, err := EncodeDomainNameToBuffer(&dnsQuestion.Name, buffer)
+	if err != nil {
+		fmt.Println("DNSQuestion Encode Error:\n", err)
+		os.Exit(1)
+	}
+	binary.BigEndian.PutUint16(buffer[offset:], uint16(dnsQuestion.Type))
+	binary.BigEndian.PutUint16(buffer[offset+2:], uint16(dnsQuestion.Class))
 	return buffer
 }
 
@@ -362,12 +430,130 @@ func (dnsQuestion *DNSQuestion) Encode() []byte {
 // - 返回值为 写入字节数 和 错误信息。
 // 如果出现错误，返回 -1 和 相应报错。
 func (dnsQuestion *DNSQuestion) EncodeToBuffer(buffer []byte) (int, error) {
+	dqSize := dnsQuestion.Size()
+	if len(buffer) < dqSize {
+		return -1, fmt.Errorf("EncodeToBuffer failed: buffer length %d is less than DNSQuestion size %d", len(buffer), dqSize)
+	}
 	_, err := EncodeDomainNameToBuffer(&dnsQuestion.Name, buffer)
 	if err != nil {
 		return -1, err
 	}
-	dqSize := dnsQuestion.Size()
 	binary.BigEndian.PutUint16(buffer[dqSize-4:], uint16(dnsQuestion.Type))
 	binary.BigEndian.PutUint16(buffer[dqSize-2:], uint16(dnsQuestion.Class))
 	return dqSize, nil
+}
+
+// Size 返回DNS响应部分的大小。
+func (responseSection DNSResponseSection) Size() int {
+	size := 0
+	for _, record := range responseSection {
+		size += record.Size()
+	}
+	return size
+}
+
+// String 以“易读的形式”返回DNS响应部分的字符串表示。
+func (responseSection DNSResponseSection) String() string {
+	var result string
+	for _, record := range responseSection {
+		result += record.String() + "\n"
+	}
+	return result
+}
+
+// Encode 将DNS响应部分编码到字节切片中。
+// - 其返回值为 编码后的字节切片。
+func (responseSection DNSResponseSection) Encode() []byte {
+	bytesArray := make([]byte, responseSection.Size())
+	offset := 0
+	for _, record := range responseSection {
+		increment, err := record.EncodeToBuffer(bytesArray[offset:])
+		offset += increment
+		if err != nil {
+			fmt.Println("DNSResponseSection Encode Error:\n", err)
+			os.Exit(1)
+		}
+	}
+	return bytesArray
+}
+
+// EncodeToBuffer 将DNS响应部分编码到传入的缓冲区中。
+// - 其接收参数：缓冲区
+// - 返回值为 写入字节数 和 错误信息。
+// 如果出现错误，返回 -1 和 相应报错。
+func (responseSection DNSResponseSection) EncodeToBuffer(buffer []byte) (int, error) {
+	offset := 0
+	for _, record := range responseSection {
+		increment, err := record.EncodeToBuffer(buffer[offset:])
+		offset += increment
+		if err != nil {
+			return -1, err
+		}
+	}
+	return offset, nil
+}
+
+// Size 返回 DNS 资源记录的*准确*大小。
+//   - RDLength 字段可由用户自行设置一个错误的值。
+func (rr *DNSResourceRecord) Size() int {
+	return GetNameWireLength(&rr.Name) + 10 + rr.RData.Size()
+}
+
+// String 以*易读的形式*返回 DNS 资源记录的字符串表示。
+//   - 其返回值为 DNS 资源记录的字符串表示。
+func (rr *DNSResourceRecord) String() string {
+	return fmt.Sprint(
+		"### DNS Resource Record ###\n",
+		"Name:", rr.Name, "\n",
+		"Type:", rr.Type, "\n",
+		"Class:", rr.Class, "\n",
+		"TTL:", rr.TTL, "\n",
+		"RDLen:", rr.RDLen, "\n",
+		"RData:", rr.RData.String(), "\n",
+		"### End of DNS Resource Record ###\n",
+	)
+}
+
+// Encode 方法编码 DNS 资源记录至返回的字节切片中。
+// - 其返回值为 编码后的字节切片 。
+func (rr *DNSResourceRecord) Encode() []byte {
+	byteArray := make([]byte, rr.Size())
+	offset, err := EncodeDomainNameToBuffer(&rr.Name, byteArray)
+	if err != nil {
+		fmt.Println("DNSResourceRecord Encode Error:\n", err)
+		os.Exit(1)
+	}
+	binary.BigEndian.PutUint16(byteArray[offset:], uint16(rr.Type))
+	binary.BigEndian.PutUint16(byteArray[offset+2:], uint16(rr.Class))
+	binary.BigEndian.PutUint32(byteArray[offset+4:], rr.TTL)
+	binary.BigEndian.PutUint16(byteArray[offset+8:], rr.RDLen)
+	_, err = rr.RData.EncodeToBuffer(byteArray[offset+10:])
+	if err != nil {
+		fmt.Println("DNSResourceRecord Encode Error:\n", err)
+		os.Exit(1)
+	}
+	return byteArray
+}
+
+// EncodeToBuffer 将编码 DNS 资源记录至传入的缓冲区中。
+//   - 其接收两个参数：缓冲区 和 偏移量。
+//   - 返回值为 写入字节数 和 错误信息。
+//
+// 如果出现错误，返回 -1 和 相应报错。
+func (rr *DNSResourceRecord) EncodeToBuffer(buffer []byte) (int, error) {
+	_, err := EncodeDomainNameToBuffer(&rr.Name, buffer)
+	if err != nil {
+		return -1, err
+	}
+	binary.BigEndian.PutUint16(buffer, uint16(rr.Type))
+	binary.BigEndian.PutUint16(buffer[2:], uint16(rr.Class))
+	binary.BigEndian.PutUint32(buffer[4:], rr.TTL)
+	binary.BigEndian.PutUint16(buffer[8:], rr.RDLen)
+
+	rdLen, err := rr.RData.EncodeToBuffer(buffer[10:])
+	if err != nil {
+		err = errors.New("DNSResourceRecord EncodeToBuffer Error:\n" + err.Error())
+		return -1, err
+	}
+	return 10 + rdLen, err
 }

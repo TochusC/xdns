@@ -1,7 +1,9 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// 该文件定义了 DNS 协议中的一些类型。
+// types.go 文件定义了 DNS 协议中的一些类型。
 package dns
+
+import "fmt"
 
 // DNSClass 表示DNS请求的类别，不同的类别对应不同的网络名称空间。
 type DNSClass uint16
@@ -28,7 +30,7 @@ func (dnsClass DNSClass) String() string {
 	case DNSClassANY:
 		return "ANY"
 	default:
-		return "UNKNOWN"
+		return fmt.Sprintf("Unknown DNS Class: (%d)", dnsClass)
 	}
 }
 
@@ -62,7 +64,7 @@ const (
 func (drc DNSResponseCode) String() string {
 	switch drc {
 	default:
-		return "Unknown"
+		return fmt.Sprintf("Unknown DNS Response Code: (%d)", drc)
 	case DNSResponseCodeNoErr:
 		return "No Error"
 	case DNSResponseCodeFormErr:
@@ -213,6 +215,8 @@ const (
 
 func (rrType DNSRRType) String() string {
 	switch rrType {
+	default:
+		return fmt.Sprintf("Unknown DNS RR Type: (%d)", rrType)
 	case DNSRRTypeA:
 		return "A"
 	case DNSRRTypeNS:
@@ -389,7 +393,5 @@ func (rrType DNSRRType) String() string {
 		return "TA"
 	case DNSRRTypeDLV:
 		return "DLV"
-	default:
-		return "UNKNOWN"
 	}
 }
