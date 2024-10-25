@@ -88,7 +88,7 @@ type DNSQuestionSection []DNSQuestion
 // DNSQuestion 表示DNS查询的问题记录
 type DNSQuestion struct {
 	Name  string
-	Type  DNSRRType
+	Type  DNSType
 	Class DNSClass
 }
 
@@ -119,7 +119,7 @@ type DNSResponseSection []DNSResourceRecord
 // DNSResourceRecord 表示 DNS 资源记录。
 type DNSResourceRecord struct {
 	Name  string
-	Type  DNSRRType
+	Type  DNSType
 	Class DNSClass
 	TTL   uint32
 	RDLen uint16
@@ -316,7 +316,7 @@ func (dns *DNSHeader) Encode() []byte {
 // 如果出现错误，返回 -1 和 相应报错。
 func (dns *DNSHeader) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < 12 {
-		return -1, fmt.Errorf("EncodeToBuffer failed: buffer length %d is less than DNSHeader size 12", len(buffer))
+		return -1, fmt.Errorf("buffer length %d is less than DNSHeader size 12", len(buffer))
 	}
 	binary.BigEndian.PutUint16(buffer, dns.ID)
 	flags := uint16(0)

@@ -1,6 +1,6 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// types.go 文件定义了 DNS 协议中的一些类型。
+// types.go 文件定义了 DNS 协议中的部分字段类型。
 package dns
 
 import "fmt"
@@ -8,7 +8,8 @@ import "fmt"
 // DNSClass 表示DNS请求的类别，不同的类别对应不同的网络名称空间。
 type DNSClass uint16
 
-// DNSClass常用的类别
+// DNSClass的常用类别
+
 const (
 	DNSClassIN  DNSClass = 1   // Internet [RFC1035]
 	DNSClassCS  DNSClass = 2   // CSNET [Dyer 87]
@@ -17,6 +18,7 @@ const (
 	DNSClassANY DNSClass = 255 // 任意类别
 )
 
+// String 方法返回 DNS 类别的字符串表示。
 func (dnsClass DNSClass) String() string {
 	switch dnsClass {
 	case DNSClassIN:
@@ -37,7 +39,8 @@ func (dnsClass DNSClass) String() string {
 // DNSResponseCode 表示DNS恢复响应码，用于指示DNS服务器对查询的响应结果。
 type DNSResponseCode uint8
 
-// DNS回复常用的响应码
+// DNS回复的响应码
+
 const (
 	DNSResponseCodeNoErr     DNSResponseCode = 0  // 无错误							[RFC1035]
 	DNSResponseCodeFormErr   DNSResponseCode = 1  // 格式错误                		[RFC1035]
@@ -61,6 +64,7 @@ const (
 	DNSResponseCodeBadCookie DNSResponseCode = 23 // 错误/缺失的服务器Cookie        [RFC7873]
 )
 
+// String 方法返回 DNS 响应码的字符串表示。
 func (drc DNSResponseCode) String() string {
 	switch drc {
 	default:
@@ -118,105 +122,111 @@ const (
 	DNSOpCodeUpdate DNSOpCode = 5 // 更新
 )
 
-// DNSRRType 表示DNS资源记录的类型。
-type DNSRRType uint16
+// DNSType 表示 DNS资源记录 中的 TYPE 字段及 DNS问题 中的 QTYPE 字段。
+//  - QTYPE 字段用于指示查询的资源记录类型。
+//  - TYPE 字段用于指示资源记录的类型。
+// QTYPE 是 TYPE 的超集，其包含了额外的查询类型。
+type DNSType uint16
 
-// 目前已知的DNS资源记录类型（大部分仍未实现）
+// 目前已知的DNS资源记录及查询类型
+
 const (
-	DNSRRTypeA          DNSRRType = 1     // 主机地址 [RFC1035]
-	DNSRRTypeNS         DNSRRType = 2     // 权威名称服务器 [RFC1035]
-	DNSRRTypeMD         DNSRRType = 3     // 邮件目的地（过时 - 使用MX） [RFC1035]
-	DNSRRTypeMF         DNSRRType = 4     // 邮件转发器（过时 - 使用MX） [RFC1035]
-	DNSRRTypeCNAME      DNSRRType = 5     // 别名的规范名称 [RFC1035]
-	DNSRRTypeSOA        DNSRRType = 6     // 标记权威区域的开始 [RFC1035]
-	DNSRRTypeMB         DNSRRType = 7     // 邮箱域名（实验性） [RFC1035]
-	DNSRRTypeMG         DNSRRType = 8     // 邮件组成员（实验性） [RFC1035]
-	DNSRRTypeMR         DNSRRType = 9     // 邮件重命名域名（实验性） [RFC1035]
-	DNSRRTypeNULL       DNSRRType = 10    // 空记录（实验性） [RFC1035]
-	DNSRRTypeWKS        DNSRRType = 11    // 知名服务描述 [RFC1035]
-	DNSRRTypePTR        DNSRRType = 12    // 域名指针 [RFC1035]
-	DNSRRTypeHINFO      DNSRRType = 13    // 主机信息 [RFC1035]
-	DNSRRTypeMINFO      DNSRRType = 14    // 邮箱或邮件列表信息 [RFC1035]
-	DNSRRTypeMX         DNSRRType = 15    // 邮件交换 [RFC1035]
-	DNSRRTypeTXT        DNSRRType = 16    // 文本字符串 [RFC1035]
-	DNSRRTypeRP         DNSRRType = 17    // 负责人员 [RFC1183]
-	DNSRRTypeAFSDB      DNSRRType = 18    // AFS数据存储位置 [RFC1183]
-	DNSRRTypeX25        DNSRRType = 19    // X.25 PSDN地址 [RFC1183]
-	DNSRRTypeISDN       DNSRRType = 20    // ISDN地址 [RFC1183]
-	DNSRRTypeRT         DNSRRType = 21    // 路由通过 [RFC1183]
-	DNSRRTypeNSAP       DNSRRType = 22    // NSAP地址，NSAP风格A记录 [RFC1706][RFC1348]
-	DNSRRTypeNSAPPTR    DNSRRType = 23    // 域名指针，NSAP风格 [RFC1348]
-	DNSRRTypeSIG        DNSRRType = 24    // 安全签名 [RFC2535]
-	DNSRRTypeKEY        DNSRRType = 25    // 安全密钥 [RFC2535]
-	DNSRRTypePX         DNSRRType = 26    // X.400邮件映射信息 [RFC2163]
-	DNSRRTypeGPOS       DNSRRType = 27    // 地理位置 [RFC1712]
-	DNSRRTypeAAAA       DNSRRType = 28    // IP6地址 [RFC3596]
-	DNSRRTypeLOC        DNSRRType = 29    // 位置信息 [RFC1876]
-	DNSRRTypeNXT        DNSRRType = 30    // 下一个域（过时） [RFC2535]
-	DNSRRTypeEID        DNSRRType = 31    // 端点标识符 [Michael_Patton][http://ana-3.lcs.mit.edu/~jnc/nimrod/dns.txt]
-	DNSRRTypeNIMLOC     DNSRRType = 32    // Nimrod定位器 [1][Michael_Patton][http://ana-3.lcs.mit.edu/~jnc/nimrod/dns.txt]
-	DNSRRTypeSRV        DNSRRType = 33    // 服务器选择 [RFC2782]
-	DNSRRTypeATMA       DNSRRType = 34    // ATM地址 [ATM论坛技术委员会，“ATM名称系统，V2.0”，文档ID：AF-DANS-0152.000]
-	DNSRRTypeNAPTR      DNSRRType = 35    // 命名权威指针 [RFC2915][RFC2168][RFC3403]
-	DNSRRTypeKX         DNSRRType = 36    // 密钥交换者 [RFC2230]
-	DNSRRTypeCERT       DNSRRType = 37    // 证书 [RFC4398]
-	DNSRRTypeA6         DNSRRType = 38    // A6（过时 - 使用AAAA） [RFC3226][RFC2874][RFC6563]
-	DNSRRTypeDNAME      DNSRRType = 39    // DNAME [RFC6672]
-	DNSRRTypeSINK       DNSRRType = 40    // SINK [Donald_E_Eastlake][http://tools.ietf.org/html/draft-eastlake-kitchen-sink]
-	DNSRRTypeOPT        DNSRRType = 41    // OPT [RFC6891][RFC3225]
-	DNSRRTypeAPL        DNSRRType = 42    // APL [RFC3123]
-	DNSRRTypeDS         DNSRRType = 43    // 委托签名者 [RFC4034][RFC3658]
-	DNSRRTypeSSHFP      DNSRRType = 44    // SSH密钥指纹 [RFC4255]
-	DNSRRTypeIPSECKEY   DNSRRType = 45    // IPSECKEY [RFC4025]
-	DNSRRTypeRRSIG      DNSRRType = 46    // RRSIG [RFC4034][RFC3755]
-	DNSRRTypeNSEC       DNSRRType = 47    // NSEC [RFC4034][RFC3755]
-	DNSRRTypeDNSKEY     DNSRRType = 48    // DNSKEY [RFC4034][RFC3755]
-	DNSRRTypeDHCID      DNSRRType = 49    // DHCID [RFC4701]
-	DNSRRTypeNSEC3      DNSRRType = 50    // NSEC3 [RFC5155]
-	DNSRRTypeNSEC3PARAM DNSRRType = 51    // NSEC3PARAM [RFC5155]
-	DNSRRTypeTLSA       DNSRRType = 52    // TLSA [RFC6698]
-	DNSRRTypeSMIMEA     DNSRRType = 53    // S/MIME证书关联 [RFC8162]
-	DNSRRTypeHIP        DNSRRType = 55    // 主机身份协议 [RFC5205]
-	DNSRRTypeNINFO      DNSRRType = 56    // NINFO [Jim_Reid]
-	DNSRRTypeRKEY       DNSRRType = 57    // RKEY [Jim_Reid]
-	DNSRRTypeTALINK     DNSRRType = 58    // 信任锚链接 [Wouter_Wijngaards]
-	DNSRRTypeCDS        DNSRRType = 59    // 子DS [RFC7344]
-	DNSRRTypeCDNSKEY    DNSRRType = 60    // 子域希望反射的DNSKEY [RFC7344]
-	DNSRRTypeOPENPGPKEY DNSRRType = 61    // OpenPGP密钥 [RFC7929]
-	DNSRRTypeCSYNC      DNSRRType = 62    // 子到父同步 [RFC7477]
-	DNSRRTypeZONEMD     DNSRRType = 63    // DNS区域的消息摘要 [draft-wessels-dns-zone-digest]
-	DNSRRTypeSVCB       DNSRRType = 64    // SVCB [draft-ietf-dnsop-svcb-https]
-	DNSRRTypeHTTPS      DNSRRType = 65    // HTTPS [draft-ietf-dnsop-svcb-https]
-	DNSRRTypeSPF        DNSRRType = 99    // SPF [RFC7208]
-	DNSRRTypeUINFO      DNSRRType = 100   // UINFO [IANA-保留]
-	DNSRRTypeUID        DNSRRType = 101   // UID [IANA-保留]
-	DNSRRTypeGID        DNSRRType = 102   // GID [IANA-保留]
-	DNSRRTypeUNSPEC     DNSRRType = 103   // UNSPEC [IANA-保留]
-	DNSRRTypeNID        DNSRRType = 104   // NID [RFC6742]
-	DNSRRTypeL32        DNSRRType = 105   // L32 [RFC6742]
-	DNSRRTypeL64        DNSRRType = 106   // L64 [RFC6742]
-	DNSRRTypeLP         DNSRRType = 107   // LP [RFC6742]
-	DNSRRTypeEUI48      DNSRRType = 108   // EUI-48 [RFC7043]
-	DNSRRTypeEUI64      DNSRRType = 109   // EUI-64 [RFC7043]
-	DNSRRTypeTKEY       DNSRRType = 249   // 事务密钥 [RFC2930]
-	DNSRRTypeTSIG       DNSRRType = 250   // 事务签名 [RFC2845]
-	DNSRRTypeIXFR       DNSRRType = 251   // 增量传输 [RFC1995]
-	DNSRRTypeAXFR       DNSRRType = 252   // 整个区域的传输 [RFC1035]
-	DNSRRTypeMAILB      DNSRRType = 253   // 请求邮箱相关记录（MB、MG或MR） [RFC1035]
-	DNSRRTypeMAILA      DNSRRType = 254   // 请求邮件代理RR（过时 - 请参见MX） [RFC1035]
-	DNSRRTypeURI        DNSRRType = 256   // URI [RFC7553]
-	DNSRRTypeCAA        DNSRRType = 257   // 认证机构限制 [RFC6844]
-	DNSRRTypeAVC        DNSRRType = 258   // 应用可见性和控制 [RFC6195]
-	DNSRRTypeDOA        DNSRRType = 259   // 数字对象架构 [RFC7208]
-	DNSRRTypeAMTRELAY   DNSRRType = 260   // 自动多播隧道中继 [RFC8777]
-	DNSRRTypeTA         DNSRRType = 32768 // DNS信任机构 [Weiler]（私有使用）
-	DNSRRTypeDLV        DNSRRType = 32769 // DNSSEC旁路验证 [RFC4431]
+	DNSRRTypeA          DNSType = 1     // 主机地址 [RFC1035]
+	DNSRRTypeNS         DNSType = 2     // 权威名称服务器 [RFC1035]
+	DNSRRTypeMD         DNSType = 3     // 邮件目的地（过时 - 使用MX） [RFC1035]
+	DNSRRTypeMF         DNSType = 4     // 邮件转发器（过时 - 使用MX） [RFC1035]
+	DNSRRTypeCNAME      DNSType = 5     // 别名的规范名称 [RFC1035]
+	DNSRRTypeSOA        DNSType = 6     // 标记权威区域的开始 [RFC1035]
+	DNSRRTypeMB         DNSType = 7     // 邮箱域名（实验性） [RFC1035]
+	DNSRRTypeMG         DNSType = 8     // 邮件组成员（实验性） [RFC1035]
+	DNSRRTypeMR         DNSType = 9     // 邮件重命名域名（实验性） [RFC1035]
+	DNSRRTypeNULL       DNSType = 10    // 空记录（实验性） [RFC1035]
+	DNSRRTypeWKS        DNSType = 11    // 知名服务描述 [RFC1035]
+	DNSRRTypePTR        DNSType = 12    // 域名指针 [RFC1035]
+	DNSRRTypeHINFO      DNSType = 13    // 主机信息 [RFC1035]
+	DNSRRTypeMINFO      DNSType = 14    // 邮箱或邮件列表信息 [RFC1035]
+	DNSRRTypeMX         DNSType = 15    // 邮件交换 [RFC1035]
+	DNSRRTypeTXT        DNSType = 16    // 文本字符串 [RFC1035]
+	DNSRRTypeRP         DNSType = 17    // 负责人员 [RFC1183]
+	DNSRRTypeAFSDB      DNSType = 18    // AFS数据存储位置 [RFC1183]
+	DNSRRTypeX25        DNSType = 19    // X.25 PSDN地址 [RFC1183]
+	DNSRRTypeISDN       DNSType = 20    // ISDN地址 [RFC1183]
+	DNSRRTypeRT         DNSType = 21    // 路由通过 [RFC1183]
+	DNSRRTypeNSAP       DNSType = 22    // NSAP地址，NSAP风格A记录 [RFC1706][RFC1348]
+	DNSRRTypeNSAPPTR    DNSType = 23    // 域名指针，NSAP风格 [RFC1348]
+	DNSRRTypeSIG        DNSType = 24    // 安全签名 [RFC2535]
+	DNSRRTypeKEY        DNSType = 25    // 安全密钥 [RFC2535]
+	DNSRRTypePX         DNSType = 26    // X.400邮件映射信息 [RFC2163]
+	DNSRRTypeGPOS       DNSType = 27    // 地理位置 [RFC1712]
+	DNSRRTypeAAAA       DNSType = 28    // IP6地址 [RFC3596]
+	DNSRRTypeLOC        DNSType = 29    // 位置信息 [RFC1876]
+	DNSRRTypeNXT        DNSType = 30    // 下一个域（过时） [RFC2535]
+	DNSRRTypeEID        DNSType = 31    // 端点标识符 [Michael_Patton][http://ana-3.lcs.mit.edu/~jnc/nimrod/dns.txt]
+	DNSRRTypeNIMLOC     DNSType = 32    // Nimrod定位器 [1][Michael_Patton][http://ana-3.lcs.mit.edu/~jnc/nimrod/dns.txt]
+	DNSRRTypeSRV        DNSType = 33    // 服务器选择 [RFC2782]
+	DNSRRTypeATMA       DNSType = 34    // ATM地址 [ATM论坛技术委员会，“ATM名称系统，V2.0”，文档ID：AF-DANS-0152.000]
+	DNSRRTypeNAPTR      DNSType = 35    // 命名权威指针 [RFC2915][RFC2168][RFC3403]
+	DNSRRTypeKX         DNSType = 36    // 密钥交换者 [RFC2230]
+	DNSRRTypeCERT       DNSType = 37    // 证书 [RFC4398]
+	DNSRRTypeA6         DNSType = 38    // A6（过时 - 使用AAAA） [RFC3226][RFC2874][RFC6563]
+	DNSRRTypeDNAME      DNSType = 39    // DNAME [RFC6672]
+	DNSRRTypeSINK       DNSType = 40    // SINK [Donald_E_Eastlake][http://tools.ietf.org/html/draft-eastlake-kitchen-sink]
+	DNSRRTypeOPT        DNSType = 41    // OPT [RFC6891][RFC3225]
+	DNSRRTypeAPL        DNSType = 42    // APL [RFC3123]
+	DNSRRTypeDS         DNSType = 43    // 委托签名者 [RFC4034][RFC3658]
+	DNSRRTypeSSHFP      DNSType = 44    // SSH密钥指纹 [RFC4255]
+	DNSRRTypeIPSECKEY   DNSType = 45    // IPSECKEY [RFC4025]
+	DNSRRTypeRRSIG      DNSType = 46    // RRSIG [RFC4034][RFC3755]
+	DNSRRTypeNSEC       DNSType = 47    // NSEC [RFC4034][RFC3755]
+	DNSRRTypeDNSKEY     DNSType = 48    // DNSKEY [RFC4034][RFC3755]
+	DNSRRTypeDHCID      DNSType = 49    // DHCID [RFC4701]
+	DNSRRTypeNSEC3      DNSType = 50    // NSEC3 [RFC5155]
+	DNSRRTypeNSEC3PARAM DNSType = 51    // NSEC3PARAM [RFC5155]
+	DNSRRTypeTLSA       DNSType = 52    // TLSA [RFC6698]
+	DNSRRTypeSMIMEA     DNSType = 53    // S/MIME证书关联 [RFC8162]
+	DNSRRTypeHIP        DNSType = 55    // 主机身份协议 [RFC5205]
+	DNSRRTypeNINFO      DNSType = 56    // NINFO [Jim_Reid]
+	DNSRRTypeRKEY       DNSType = 57    // RKEY [Jim_Reid]
+	DNSRRTypeTALINK     DNSType = 58    // 信任锚链接 [Wouter_Wijngaards]
+	DNSRRTypeCDS        DNSType = 59    // 子DS [RFC7344]
+	DNSRRTypeCDNSKEY    DNSType = 60    // 子域希望反射的DNSKEY [RFC7344]
+	DNSRRTypeOPENPGPKEY DNSType = 61    // OpenPGP密钥 [RFC7929]
+	DNSRRTypeCSYNC      DNSType = 62    // 子到父同步 [RFC7477]
+	DNSRRTypeZONEMD     DNSType = 63    // DNS区域的消息摘要 [draft-wessels-dns-zone-digest]
+	DNSRRTypeSVCB       DNSType = 64    // SVCB [draft-ietf-dnsop-svcb-https]
+	DNSRRTypeHTTPS      DNSType = 65    // HTTPS [draft-ietf-dnsop-svcb-https]
+	DNSRRTypeSPF        DNSType = 99    // SPF [RFC7208]
+	DNSRRTypeUINFO      DNSType = 100   // UINFO [IANA-保留]
+	DNSRRTypeUID        DNSType = 101   // UID [IANA-保留]
+	DNSRRTypeGID        DNSType = 102   // GID [IANA-保留]
+	DNSRRTypeUNSPEC     DNSType = 103   // UNSPEC [IANA-保留]
+	DNSRRTypeNID        DNSType = 104   // NID [RFC6742]
+	DNSRRTypeL32        DNSType = 105   // L32 [RFC6742]
+	DNSRRTypeL64        DNSType = 106   // L64 [RFC6742]
+	DNSRRTypeLP         DNSType = 107   // LP [RFC6742]
+	DNSRRTypeEUI48      DNSType = 108   // EUI-48 [RFC7043]
+	DNSRRTypeEUI64      DNSType = 109   // EUI-64 [RFC7043]
+	DNSRRTypeTKEY       DNSType = 249   // 事务密钥 [RFC2930]
+	DNSRRTypeTSIG       DNSType = 250   // 事务签名 [RFC2845]
+	DNSRRTypeIXFR       DNSType = 251   // 增量传输 [RFC1995]
+	DNSQTypeAXFR        DNSType = 252   // 请求整个区域的传输 [RFC1035]
+	DNSQTypeMAILB       DNSType = 253   // 请求邮箱相关记录（MB、MG或MR） [RFC1035]
+	DNSQTypeMAILA       DNSType = 254   // 请求邮件代理RR（过时 - 请参见MX） [RFC1035]
+	DNSQTypeANY         DNSType = 255   // 请求任意类型的资源记录 [RFC1035]
+	DNSRRTypeURI        DNSType = 256   // URI [RFC7553]
+	DNSRRTypeCAA        DNSType = 257   // 认证机构限制 [RFC6844]
+	DNSRRTypeAVC        DNSType = 258   // 应用可见性和控制 [RFC6195]
+	DNSRRTypeDOA        DNSType = 259   // 数字对象架构 [RFC7208]
+	DNSRRTypeAMTRELAY   DNSType = 260   // 自动多播隧道中继 [RFC8777]
+	DNSRRTypeTA         DNSType = 32768 // DNS信任机构 [Weiler]（私有使用）
+	DNSRRTypeDLV        DNSType = 32769 // DNSSEC旁路验证 [RFC4431]
 )
 
-func (rrType DNSRRType) String() string {
-	switch rrType {
+// String 方法返回 DNS 资源记录类型的字符串表示。
+func (dnsType DNSType) String() string {
+	switch dnsType {
 	default:
-		return fmt.Sprintf("Unknown DNS RR Type: (%d)", rrType)
+		return fmt.Sprintf("Unknown DNS RR Type: (%d)", dnsType)
 	case DNSRRTypeA:
 		return "A"
 	case DNSRRTypeNS:
@@ -373,12 +383,14 @@ func (rrType DNSRRType) String() string {
 		return "TSIG"
 	case DNSRRTypeIXFR:
 		return "IXFR"
-	case DNSRRTypeAXFR:
+	case DNSQTypeAXFR:
 		return "AXFR"
-	case DNSRRTypeMAILB:
+	case DNSQTypeMAILB:
 		return "MAILB"
-	case DNSRRTypeMAILA:
+	case DNSQTypeMAILA:
 		return "MAILA"
+	case DNSQTypeANY:
+		return "ANY"
 	case DNSRRTypeURI:
 		return "URI"
 	case DNSRRTypeCAA:

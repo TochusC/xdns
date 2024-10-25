@@ -1,7 +1,13 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// rdata.go 文件定义了用于表示 DNS 资源记录 RDATA 部分的接口。
+// rdata.go 文件定义了用于表示 DNS 资源记录 RDATA 的接口 DNSRRRDATA。
 package dns
+
+import (
+	"fmt"
+	"net"
+	"os"
+)
 
 // DNSRRRDATA 接口表示 DNS 资源记录的 RDATA 部分,
 // 其常用方法：Size、String、Encode 和 EncodeToBuffer。
@@ -16,11 +22,11 @@ package dns
 // 任何实现了 DNSRRRDATA 接口的类型都可以作为 DNS 资源记录的 RDATA 部分。
 type DNSRRRDATA interface {
 	// Type 方法返回 RDATA 部分的类型。
-	//  - 其返回值为 DNSRRType。
+	//  - 其返回值为 DNSType。
 	// 许多对象（如 DNS 结构体） 与 DNSRRRDATA接口 都有着Size、String、Encode...等方法，
-	// 但 DNS 结构体没有 Type 方法，而是直接定义了 DNSRRType 类型的 Type 字段 。
+	// 但 DNS 结构体没有 Type 方法，而是直接定义了 DNSType 类型的 Type 字段 。
 	// Type 方法特化了 DNSRRRDATA 接口使得 DNS 结构体等对象不是 DNSRRRDATA 接口的实现。
-	Type() DNSRRType
+	Type() DNSType
 
 	// Size 方法返回 RDATA 部分的大小。
 	//  - 其返回值为 RDATA 部分的*准确*大小。
@@ -31,19 +37,147 @@ type DNSRRRDATA interface {
 	String() string
 
 	/* TODO: Mais 等到真正需要时再实现吧？
-
-	// StringRFC 方法以*RFC文档规定的ASCII表示*返回对应 资源记录 RDATA 部分的 字符串表示。
+	// Masterlize 方法以*Master File中的ASCII表示*返回对应 资源记录 RDATA 部分的 字符串表示。
 	//  - 其返回值为 RDATA 部分的字符串表示。
-	StringRFC() string
+	Masterlize() string
+	*/
 
 	// Encode 方法返回编码后的 RDATA 部分。
 	//  - 其返回值为 编码后的字节切片。
 	Encode() []byte
 
-	*/
-
 	// EncodeToBuffer 方法将编码后的 RDATA 部分写入缓冲区。
 	//  - 其接收 缓冲区切片 作为参数。
 	//  - 返回值为 写入的字节数 和 错误信息。
 	EncodeToBuffer(buffer []byte) (int, error)
+}
+
+// A RDATA 编码格式
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    ADDRESS                    |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+// DNSARDATA 结构体表示 A 类型的 DNS 资源记录的 RDATA 部分。
+//   - 其包含一个32位 IPv4 地址。
+//
+// RFC 1035 3.4.1 节 定义了 A 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+type DNSARDATA struct {
+	Address net.IP
+}
+
+func (rdata *DNSARDATA) Type() DNSType {
+	return DNSRRTypeA
+}
+
+func (rdata *DNSARDATA) Size() int {
+	return net.IPv4len
+}
+
+func (rdata *DNSARDATA) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Address: ", rdata.Address.String(), "\n",
+		"### End of RDATA Section ###",
+	)
+}
+
+// Encode 方法返回编码后的 RDATA 部分。
+func (rdata *DNSARDATA) Encode() []byte {
+	return rdata.Address.To4()
+}
+
+// EncodeToBuffer 方法将编码后的 RDATA 部分写入缓冲区。
+// - 其接收 缓冲区切片 作为参数。
+// - 返回值为 写入的字节数 和 错误信息。
+// 如果缓冲区长度不足，返回 -1 和错误信息。
+func (rdata *DNSARDATA) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than A RDATA size %d", len(buffer), rdata.Size())
+	}
+	copy(buffer, rdata.Encode())
+	return rdata.Size(), nil
+}
+
+// CNAME RDATA 编码格式
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                     CNAME                     |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+// DNSCNAMERecordRDATA 结构体表示 CNAME 类型的 DNS 资源记录的 RDATA 部分。
+// - 其包含一个域名。
+// RFC 1035 3.3.1 节 定义了 CNAME 类型的 DNS 资源记录。
+// 其 Type 值为 5。
+type DNSCNAMERecordRDATA struct {
+	CNAME string
+}
+
+func (rdata *DNSCNAMERecordRDATA) Type() DNSType {
+	return DNSRRTypeCNAME
+}
+
+func (rdata *DNSCNAMERecordRDATA) Size() int {
+	return len(rdata.CNAME) + 1
+}
+
+func (rdata *DNSCNAMERecordRDATA) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"CNAME: ", rdata.CNAME, "\n",
+		"### End of RDATA Section ###",
+	)
+}
+
+func (rdata *DNSCNAMERecordRDATA) Encode() []byte {
+	return []byte(rdata.CNAME)
+}
+
+func (rdata *DNSCNAMERecordRDATA) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than CNAME RDATA size %d", len(buffer), rdata.Size())
+	}
+	copy(buffer, rdata.Encode())
+	return rdata.Size(), nil
+}
+
+// NS RDATA 编码格式
+type DNSNSRecordRDATA struct {
+	NS string
+}
+
+func (rdata *DNSNSRecordRDATA) Type() DNSType {
+	return DNSRRTypeNS
+}
+
+func (rdata *DNSNSRecordRDATA) Size() int {
+	return GetNameWireLength(&rdata.NS)
+}
+
+func (rdata *DNSNSRecordRDATA) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"NS: ", rdata.NS, "\n",
+		"### End of RDATA Section ###",
+	)
+}
+
+func (rdata *DNSNSRecordRDATA) Encode() []byte {
+	bytesArray := make([]byte, rdata.Size())
+	_, err := EncodeDomainNameToBuffer(&rdata.NS, bytesArray)
+	if err != nil {
+		fmt.Println("EncodeDomainNameToBuffer failed: ", err)
+		os.Exit(1)
+	}
+	return bytesArray
+}
+
+func (rdata *DNSNSRecordRDATA) EncodeToBuffer(buffer []byte) (int, error) {
+	rdataSize := rdata.Size()
+	if len(buffer) < rdataSize {
+		return -1, fmt.Errorf("buffer length %d is less than NS RDATA size %d", len(buffer), rdataSize)
+	}
+	_, err := EncodeDomainNameToBuffer(&rdata.NS, buffer)
+	if err != nil {
+		return -1, err
+	}
+	return rdataSize, nil
 }
