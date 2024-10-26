@@ -82,7 +82,7 @@ type DNSHeader struct {
 //  |                     CLASS                     |
 //  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
-// DNSQuestionSection 表示DNS查询的问题部分
+// DNSQuestionSection 表示DNS消息的 问题部分
 type DNSQuestionSection []DNSQuestion
 
 // DNSQuestion 表示DNS查询的问题记录
@@ -126,6 +126,8 @@ type DNSResourceRecord struct {
 	RData DNSRRRDATA
 }
 
+// DNS 相关方法定义
+
 // Size 返回DNS层的*准确（也是实际上的）*大小
 // 错误的字段值不会影响Size的计算。
 func (dns *DNS) Size() int {
@@ -148,13 +150,53 @@ func (dns *DNS) Size() int {
 func (dns *DNS) String() string {
 	return fmt.Sprint(
 		"### DNS Message ###\n",
-		dns.Header.String(),
+		dns.Header.String(), "\n",
 		dns.Question.String(),
 		dns.Answer.String(),
 		dns.Authority.String(),
 		dns.Additional.String(),
-		"### End of DNS Message ###]",
+		"### End of DNS Message ###",
 	)
+}
+
+// Equal 检查两个DNS消息是否相等。
+func (dns *DNS) Equal(other *DNS) bool {
+	if dns.Header != other.Header {
+		return false
+	}
+	if len(dns.Question) != len(other.Question) {
+		return false
+	}
+	for i, question := range dns.Question {
+		if question != other.Question[i] {
+			return false
+		}
+	}
+	if len(dns.Answer) != len(other.Answer) {
+		return false
+	}
+	for i, answer := range dns.Answer {
+		if answer != other.Answer[i] {
+			return false
+		}
+	}
+	if len(dns.Authority) != len(other.Authority) {
+		return false
+	}
+	for i, authority := range dns.Authority {
+		if authority != other.Authority[i] {
+			return false
+		}
+	}
+	if len(dns.Additional) != len(other.Additional) {
+		return false
+	}
+	for i, additional := range dns.Additional {
+		if additional != other.Additional[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Encode 将DNS层编码到字节切片中。
@@ -253,6 +295,57 @@ func (dns *DNS) EncodeToBuffer(buffer []byte) (int, error) {
 	return offset, nil
 }
 
+func (dns *DNS) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	// 解码头部
+	offset, err := dns.Header.DecodeFromBuffer(buffer, offset)
+	if err != nil {
+		return -1, err
+	}
+
+	// 根据头部字段 初始化 DNS 的各个部分
+	dns.Question = make(DNSQuestionSection, dns.Header.QDCount)
+	dns.Answer = make(DNSResponseSection, dns.Header.ANCount)
+	dns.Authority = make(DNSResponseSection, dns.Header.NSCount)
+	dns.Additional = make(DNSResponseSection, dns.Header.ARCount)
+
+	// 解码查询部分
+	for i := 0; i < int(dns.Header.QDCount); i++ {
+		offset, err = dns.Question[i].DecodeFromBuffer(buffer, offset)
+		if err != nil {
+			return -1, fmt.Errorf("DNS Decode Error(Question Section#%d Offset:%d):\n%s", i, offset, err)
+		}
+	}
+
+	// 解码回答部分
+	for i := 0; i < int(dns.Header.ANCount); i++ {
+		offset, err = dns.Answer[i].DecodeFromBuffer(buffer, offset)
+		if err != nil {
+			return -1, fmt.Errorf("DNS Decode Error(Answer Section):\n%s", err)
+		}
+	}
+
+	// 解码权威部分
+	for i := 0; i < int(dns.Header.NSCount); i++ {
+		offset, err = dns.Authority[i].DecodeFromBuffer(buffer, offset)
+		if err != nil {
+			return -1, fmt.Errorf("DNS Decode Error(Authority Section):\n%s", err)
+		}
+	}
+
+	// 解码附加部分
+	for i := 0; i < int(dns.Header.ARCount); i++ {
+		offset, err = dns.Additional[i].DecodeFromBuffer(buffer, offset)
+		if err != nil {
+			return -1, fmt.Errorf("DNS Decode Error(Additional Section):\n%s", err)
+		}
+	}
+
+	// 解码完成⚡
+	return offset, nil
+}
+
+// DNSHeader 相关方法定义
+
 // Size 返回DNS消息头部的大小。
 // - 头部大小固定为12字节。
 func (dns *DNSHeader) Size() int {
@@ -345,12 +438,43 @@ func (dns *DNSHeader) EncodeToBuffer(buffer []byte) (int, error) {
 	return 12, nil
 }
 
-// Size 返回DNS查询的问题部分的大小。
+// DecodeFromBuffer 从存储有 DNS消息 的缓冲区中解码DNS消息头部。
+//   - 其接收参数：缓冲区 和 偏移量。
+//   - 返回值为 解码后偏移量 和 错误信息。
+//
+// 如果出现错误，返回 -1 和 相应报错。
+func (dnsHeader *DNSHeader) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	// 检查缓冲区长度
+	if len(buffer) < offset+12 {
+		return -1, fmt.Errorf("buffer length %d is less than DNSHeader size 12", len(buffer))
+	}
+	// 开始解码
+	dnsHeader.ID = binary.BigEndian.Uint16(buffer[offset:])
+	flags := binary.BigEndian.Uint16(buffer[offset+2:])
+	dnsHeader.QR = flags>>15 == 1
+	dnsHeader.OpCode = DNSOpCode((flags >> 11) & 0x0f)
+	dnsHeader.AA = flags>>10 == 1
+	dnsHeader.TC = flags>>9 == 1
+	dnsHeader.RD = flags>>8 == 1
+	dnsHeader.RA = flags>>7 == 1
+	dnsHeader.Z = uint8((flags >> 4) & 0x07)
+	dnsHeader.RCode = DNSResponseCode(flags & 0x0f)
+	dnsHeader.QDCount = binary.BigEndian.Uint16(buffer[offset+4:])
+	dnsHeader.ANCount = binary.BigEndian.Uint16(buffer[offset+6:])
+	dnsHeader.NSCount = binary.BigEndian.Uint16(buffer[offset+8:])
+	dnsHeader.ARCount = binary.BigEndian.Uint16(buffer[offset+10:])
+
+	return offset + 12, nil
+}
+
+// DNSQuestion 相关方法定义
+
+// Size 返回DNS消息 的 问题部分的大小。
 func (dnsQuestion *DNSQuestion) Size() int {
 	return GetNameWireLength(&dnsQuestion.Name) + 4
 }
 
-// String 以“易读的形式”返回DNS查询的问题部分的字符串表示。
+// String 以“易读的形式”返回DNS消息 的 问题部分的字符串表示。
 func (dnsQuestion *DNSQuestion) String() string {
 	return fmt.Sprint(
 		"### DNS Question ###\n",
@@ -361,7 +485,7 @@ func (dnsQuestion *DNSQuestion) String() string {
 	)
 }
 
-// Size 返回DNS查询的问题部分的大小。
+// Size 返回DNS消息 的 问题部分的大小。
 func (section DNSQuestionSection) Size() int {
 	size := 0
 	for _, question := range section {
@@ -370,8 +494,8 @@ func (section DNSQuestionSection) Size() int {
 	return size
 }
 
-// String 以“易读的形式”返回DNS查询的问题部分的字符串表示。
-// - 其返回值为 DNS查询的问题部分的字符串表示。
+// String 以“易读的形式”返回DNS消息 的 问题部分的字符串表示。
+// - 其返回值为 DNS消息 的 问题部分的字符串表示。
 func (section DNSQuestionSection) String() string {
 	var result string
 	for _, question := range section {
@@ -380,7 +504,22 @@ func (section DNSQuestionSection) String() string {
 	return result
 }
 
-// Encode 将DNS查询的问题部分编码到字节切片中。
+// Equal 检查两个DNS消息的问题部分是否相等。
+// - 其接收参数：另一个DNS消息的问题部分
+// - 返回值为 两个DNS消息的问题部分是否相等。
+func (section DNSQuestionSection) Equal(other DNSQuestionSection) bool {
+	if len(section) != len(other) {
+		return false
+	}
+	for i, question := range section {
+		if question != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Encode 将DNS消息 的 问题部分编码到字节切片中。
 // - 其返回值为 编码后的字节切片。
 func (section DNSQuestionSection) Encode() []byte {
 	bytesArray := make([]byte, section.Size())
@@ -396,7 +535,7 @@ func (section DNSQuestionSection) Encode() []byte {
 	return bytesArray
 }
 
-// EncodeToBuffer 将DNS查询的问题部分编码到传入的缓冲区中。
+// EncodeToBuffer 将DNS消息 的 问题部分编码到传入的缓冲区中。
 // - 其接收参数：缓冲区
 // - 返回值为 写入字节数 和 错误信息。
 // 如果出现错误，返回 -1 和 相应报错。
@@ -412,7 +551,25 @@ func (section DNSQuestionSection) EncodeToBuffer(buffer []byte) (int, error) {
 	return offset, nil
 }
 
-// Encode 将DNS查询的问题部分编码到字节切片中。
+// DecodeFromBuffer 从存储有 DNS消息 的缓冲区中解码DNS消息的 问题部分 。
+// - 其接收参数：缓冲区 和 偏移量。
+// - 返回值为 解码后偏移量 和 错误信息。
+// 如果出现错误，返回 -1 和 相应报错。
+func (dnsQuestion *DNSQuestion) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	var err error
+	// 解码域名
+	dnsQuestion.Name, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
+	if err != nil {
+		return -1, err
+	}
+	// 解码类型
+	dnsQuestion.Type = DNSType(binary.BigEndian.Uint16(buffer[offset:]))
+	// 解码类
+	dnsQuestion.Class = DNSClass(binary.BigEndian.Uint16(buffer[offset+2:]))
+	return offset + 4, nil
+}
+
+// Encode 将 DNS消息的问题部分 编码到 字节切片 中。
 func (dnsQuestion *DNSQuestion) Encode() []byte {
 	buffer := make([]byte, dnsQuestion.Size())
 	offset, err := EncodeDomainNameToBuffer(&dnsQuestion.Name, buffer)
@@ -425,7 +582,7 @@ func (dnsQuestion *DNSQuestion) Encode() []byte {
 	return buffer
 }
 
-// EncodeToBuffer 将DNS查询的问题部分编码到传入的缓冲区中。
+// EncodeToBuffer 将D NS消息的问题部分 编码到 传入的缓冲区 中。
 // - 其接收参数：缓冲区
 // - 返回值为 写入字节数 和 错误信息。
 // 如果出现错误，返回 -1 和 相应报错。
@@ -461,7 +618,20 @@ func (responseSection DNSResponseSection) String() string {
 	return result
 }
 
-// Encode 将DNS响应部分编码到字节切片中。
+// Equal 检查两个DNS响应部分是否相等。
+func (responseSection DNSResponseSection) Equal(other DNSResponseSection) bool {
+	if len(responseSection) != len(other) {
+		return false
+	}
+	for i, record := range responseSection {
+		if record != other[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// Encode 将 DNS响应部分 编码到 字节切片 中。
 // - 其返回值为 编码后的字节切片。
 func (responseSection DNSResponseSection) Encode() []byte {
 	bytesArray := make([]byte, responseSection.Size())
@@ -486,6 +656,24 @@ func (responseSection DNSResponseSection) EncodeToBuffer(buffer []byte) (int, er
 	for _, record := range responseSection {
 		increment, err := record.EncodeToBuffer(buffer[offset:])
 		offset += increment
+		if err != nil {
+			return -1, err
+		}
+	}
+	return offset, nil
+}
+
+// DecodeFromBuffer 从存储有 DNS消息 的缓冲区中解码DNS消息的 响应部分 。
+// - 其接收参数：缓冲区 和 偏移量。
+// - 返回值为 解码后的DNSResponseSection,  解码后偏移量, 错误信息。
+// 如果出现错误，返回nil, -1 和 相应报错。
+// DNSResponseSection 为 DNSResourceRecord 数组的切片
+// 返回DNSResponseSection不会影响程序的性能，因为切片是引用传递。
+func (responseSection DNSResponseSection) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	var err error
+	for i := 0; i < len(responseSection); i++ {
+		responseSection = append(responseSection, DNSResourceRecord{})
+		offset, err = responseSection[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
 			return -1, err
 		}
@@ -556,4 +744,34 @@ func (rr *DNSResourceRecord) EncodeToBuffer(buffer []byte) (int, error) {
 		return -1, err
 	}
 	return 10 + rdLen, err
+}
+
+// DecodeFromBuffer 从存储有 DNS消息 的缓冲区中解码DNS消息的 资源记录部分 。
+// - 其接收参数：缓冲区 和 偏移量。
+// - 返回值为 解码后偏移量 和 错误信息。
+// 如果出现错误，返回 -1 和 相应报错。
+func (rr *DNSResourceRecord) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	var err error
+	// 解码域名
+	name, offset, err := DecodeDomainNameFromBuffer(buffer, offset)
+	if err != nil {
+		return -1, err
+	}
+	rr.Name = name
+	// 解码类型
+	rr.Type = DNSType(binary.BigEndian.Uint16(buffer[offset:]))
+	// 解码类
+	rr.Class = DNSClass(binary.BigEndian.Uint16(buffer[offset+2:]))
+	// 解码TTL
+	rr.TTL = binary.BigEndian.Uint32(buffer[offset+4:])
+	// 解码RDLen
+	rr.RDLen = binary.BigEndian.Uint16(buffer[offset+8:])
+	// 根据类型初始化 RData
+	rr.RData = InitDNSRRRDATA(rr.Type)
+	// 解码RData
+	offset, err = rr.RData.DecodeFromBuffer(buffer, offset+10)
+	if err != nil {
+		return -1, err
+	}
+	return offset + 10 + int(rr.RDLen), nil
 }

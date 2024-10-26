@@ -6,6 +6,7 @@ package dns
 import (
 	"testing"
 
+	"github.com/tochusc/godns/dns"
 	"github.com/tochusc/godns/utils"
 	"github.com/tochusc/gopacket"
 	"github.com/tochusc/gopacket/layers"
@@ -13,31 +14,33 @@ import (
 
 func TestSerializeTo(t *testing.T) {
 	dns := DNS{
-		Header: DNSHeader{
-			ID:      0x1234,
-			QR:      false,
-			OpCode:  DNSOpCodeQuery,
-			AA:      true,
-			TC:      false,
-			RD:      false,
-			RA:      false,
-			Z:       0,
-			RCode:   DNSResponseCodeNoErr,
-			QDCount: 1,
-			ANCount: 0,
-			NSCount: 0,
-			ARCount: 0,
-		},
-		Question: []DNSQuestion{
-			{
-				Name:  "www.example.com",
-				Type:  DNSRRTypeA,
-				Class: DNSClassIN,
+		godns: dns.DNS{
+			Header: dns.DNSHeader{
+				ID:      0x1234,
+				QR:      false,
+				OpCode:  dns.DNSOpCodeQuery,
+				AA:      true,
+				TC:      false,
+				RD:      false,
+				RA:      false,
+				Z:       0,
+				RCode:   dns.DNSResponseCodeNoErr,
+				QDCount: 1,
+				ANCount: 0,
+				NSCount: 0,
+				ARCount: 0,
 			},
+			Question: []dns.DNSQuestion{
+				{
+					Name:  "www.example.com",
+					Type:  dns.DNSRRTypeA,
+					Class: dns.DNSClassIN,
+				},
+			},
+			Answer:     []dns.DNSResourceRecord{},
+			Authority:  []dns.DNSResourceRecord{},
+			Additional: []dns.DNSResourceRecord{},
 		},
-		Answer:     []DNSResourceRecord{},
-		Authority:  []DNSResourceRecord{},
-		Additional: []DNSResourceRecord{},
 	}
 	serializeBuffer := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{

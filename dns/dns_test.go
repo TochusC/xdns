@@ -21,23 +21,23 @@ var testedDNSHeader = DNSHeader{
 	RA:      false,
 	Z:       0,
 	RCode:   DNSResponseCodeNoErr,
-	QDCount: 1,
-	ANCount: 1234,
-	NSCount: 2345,
-	ARCount: 65535,
+	QDCount: 2,
+	ANCount: 0,
+	NSCount: 0,
+	ARCount: 0,
 }
 
 // DNSHeader 的期望编码结果。
-var expectedEncodedDNSHeader = []byte{
+var testedDNSHeaderEncoded = []byte{
 	0x12, 0x34, 0x04, 0x00,
-	0x00, 0x01, 0x04, 0xd2,
-	0x09, 0x29, 0xff, 0xff,
+	0x00, 0x02, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00,
 }
 
 // 测试 DNSHeader 的 Size 方法
 func TestDNSHeaderSize(t *testing.T) {
 	size := testedDNSHeader.Size()
-	expectedSize := len(expectedEncodedDNSHeader)
+	expectedSize := len(testedDNSHeaderEncoded)
 	if size != expectedSize {
 		t.Errorf("DNSHeaderSize() failed:\n%s\ngot:%d\nexpected: %d",
 			utils.ResultMismatch, size, expectedSize)
@@ -52,9 +52,9 @@ func TestDNSHeaderString(t *testing.T) {
 // 测试 DNSHeader 的 Encode 方法
 func TestDNSHeaderEncode(t *testing.T) {
 	encodedDNSHeader := testedDNSHeader.Encode()
-	if !bytes.Equal(encodedDNSHeader, expectedEncodedDNSHeader) {
+	if !bytes.Equal(encodedDNSHeader, testedDNSHeaderEncoded) {
 		t.Errorf("DNSHeaderEncode() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, encodedDNSHeader, expectedEncodedDNSHeader)
+			utils.ResultMismatch, encodedDNSHeader, testedDNSHeaderEncoded)
 	}
 }
 
@@ -67,9 +67,9 @@ func TestDNSHeaderEncodeToBuffer(t *testing.T) {
 		t.Errorf("DNSHeaderEncodeToBuffer() failed:\n%s\n%s",
 			utils.ErrorMismatch, err.Error())
 	}
-	if !bytes.Equal(buffer, expectedEncodedDNSHeader) {
+	if !bytes.Equal(buffer, testedDNSHeaderEncoded) {
 		t.Errorf("DNSHeaderEncodeToBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, buffer, expectedEncodedDNSHeader)
+			utils.ResultMismatch, buffer, testedDNSHeaderEncoded)
 	}
 
 	// 缓冲区长度不足
@@ -77,6 +77,33 @@ func TestDNSHeaderEncodeToBuffer(t *testing.T) {
 	_, err = testedDNSHeader.EncodeToBuffer(buffer)
 	if err == nil {
 		t.Errorf("DNSHeaderEncodeToBuffer() failed:\n%s\n%s",
+			utils.ErrorMismatch, "expected an error but got nil")
+	}
+}
+
+// 测试 DNSHeader 的 DecodeFromBuffer 方法
+func TestDNSHeaderDecodeFromBuffer(t *testing.T) {
+	// 正常情况
+	decodedDNSHeader := DNSHeader{}
+	offset, err := decodedDNSHeader.DecodeFromBuffer(testedDNSHeaderEncoded, 0)
+	if err != nil {
+		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\n%s",
+			utils.ErrorMismatch, err.Error())
+	}
+	if offset != 12 {
+		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\ngot:%d\nexpected: %d",
+			utils.ResultMismatch, offset, 12)
+	}
+	if decodedDNSHeader != testedDNSHeader {
+		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
+			utils.ResultMismatch, decodedDNSHeader, testedDNSHeader)
+	}
+
+	// 缓冲区长度不足
+	decodedDNSHeader = DNSHeader{}
+	offset, err = decodedDNSHeader.DecodeFromBuffer(testedDNSHeaderEncoded, 1)
+	if err == nil {
+		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\n%s",
 			utils.ErrorMismatch, "expected an error but got nil")
 	}
 }
@@ -89,7 +116,7 @@ var testedDNSQuestion = DNSQuestion{
 }
 
 // DNSQuestion 的期望编码结果。
-var expectedEncodedDNSQuestion = []byte{
+var testedDNSQuestionEncoded = []byte{
 	0x03, 0x77, 0x77, 0x77,
 	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
 	0x03, 0x63, 0x6f, 0x6d,
@@ -100,7 +127,7 @@ var expectedEncodedDNSQuestion = []byte{
 // 测试 DNSQuestion 的 Size 方法
 func TestDNSQuestionSize(t *testing.T) {
 	size := testedDNSQuestion.Size()
-	expectedSize := len(expectedEncodedDNSQuestion)
+	expectedSize := len(testedDNSQuestionEncoded)
 	if size != expectedSize {
 		t.Errorf("DNSQuestionSize() failed:\n%s\ngot:%d\nexpected: %d",
 			utils.ResultMismatch, size, expectedSize)
@@ -115,24 +142,24 @@ func TestDNSQuestionString(t *testing.T) {
 // 测试 DNSQuestion的 Encode 方法
 func TestDNSQuestionEncode(t *testing.T) {
 	encodedDNSQuestion := testedDNSQuestion.Encode()
-	if !bytes.Equal(encodedDNSQuestion, expectedEncodedDNSQuestion) {
+	if !bytes.Equal(encodedDNSQuestion, testedDNSQuestionEncoded) {
 		t.Errorf("DNSQuestionEncode() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, encodedDNSQuestion, expectedEncodedDNSQuestion)
+			utils.ResultMismatch, encodedDNSQuestion, testedDNSQuestionEncoded)
 	}
 }
 
 // 测试 DNSQuestion 的 EncodeToBuffer 方法
 func TestDNSQuestionEncodeToBuffer(t *testing.T) {
 	// 正常情况
-	buffer := make([]byte, len(expectedEncodedDNSQuestion))
+	buffer := make([]byte, len(testedDNSQuestionEncoded))
 	_, err := testedDNSQuestion.EncodeToBuffer(buffer)
 	if err != nil {
 		t.Errorf("DNSQuestionEncodeToBuffer() failed:\n%s\n%s",
 			utils.ErrorMismatch, err.Error())
 	}
-	if !bytes.Equal(buffer, expectedEncodedDNSQuestion) {
+	if !bytes.Equal(buffer, testedDNSQuestionEncoded) {
 		t.Errorf("DNSQuestionEncodeToBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, buffer, expectedEncodedDNSQuestion)
+			utils.ResultMismatch, buffer, testedDNSQuestionEncoded)
 	}
 
 	// 缓冲区长度不足
@@ -144,6 +171,33 @@ func TestDNSQuestionEncodeToBuffer(t *testing.T) {
 	}
 }
 
+// 测试 DNSQuestion 的 DecodeFromBuffer 方法
+func TestDNSQuestionDecodeFromBuffer(t *testing.T) {
+	// 正常情况
+	decodedDNSQuestion := DNSQuestion{}
+	offset, err := decodedDNSQuestion.DecodeFromBuffer(testedDNSQuestionEncoded, 0)
+	if err != nil {
+		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\n%s",
+			utils.ErrorMismatch, err.Error())
+	}
+	if offset != len(testedDNSQuestionEncoded) {
+		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\ngot:%d\nexpected: %d",
+			utils.ResultMismatch, offset, len(testedDNSQuestionEncoded))
+	}
+	if decodedDNSQuestion != testedDNSQuestion {
+		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
+			utils.ResultMismatch, decodedDNSQuestion, testedDNSQuestion)
+	}
+
+	// 缓冲区长度不足
+	decodedDNSQuestion = DNSQuestion{}
+	_, err = decodedDNSQuestion.DecodeFromBuffer(testedDNSQuestionEncoded, 1)
+	if err == nil {
+		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\n%s",
+			utils.ErrorMismatch, "expected an error but got nil")
+	}
+}
+
 // 待测试的 DNS 对象。
 var testedDNS = DNS{
 	Header: testedDNSHeader,
@@ -151,17 +205,17 @@ var testedDNS = DNS{
 		testedDNSQuestion,
 		testedDNSQuestion,
 	},
-	Answer:     []DNSResourceRecord{},
-	Authority:  []DNSResourceRecord{},
-	Additional: []DNSResourceRecord{},
+	Answer:     nil,
+	Authority:  nil,
+	Additional: nil,
 }
 
 // DNS 的期望编码结果。
-var expectedEncodedDNS = []byte{
+var testedDNSEncoded = []byte{
 	// Header
 	0x12, 0x34, 0x04, 0x00,
-	0x00, 0x01, 0x04, 0xd2,
-	0x09, 0x29, 0xff, 0xff,
+	0x00, 0x02, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00,
 	// Question 1
 	0x03, 0x77, 0x77, 0x77,
 	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
@@ -179,7 +233,7 @@ var expectedEncodedDNS = []byte{
 // 测试 DNS 的 Size 方法
 func TestDNSSize(t *testing.T) {
 	size := testedDNS.Size()
-	expectedSize := len(expectedEncodedDNS)
+	expectedSize := len(testedDNSEncoded)
 	if size != expectedSize {
 		t.Errorf("DNSSize() failed:\n%s\ngot:%d\nexpected: %d",
 			utils.ResultMismatch, size, expectedSize)
@@ -194,24 +248,24 @@ func TestDNSString(t *testing.T) {
 // 测试 DNS 的 Encode 方法
 func TestDNSEncode(t *testing.T) {
 	encodedDNS := testedDNS.Encode()
-	if !bytes.Equal(encodedDNS, expectedEncodedDNS) {
+	if !bytes.Equal(encodedDNS, testedDNSEncoded) {
 		t.Errorf("DNSEncode() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, encodedDNS, expectedEncodedDNS)
+			utils.ResultMismatch, encodedDNS, testedDNSEncoded)
 	}
 }
 
 // 测试 DNS 的 EncodeToBuffer 方法
 func TestDNSEncodeToBuffer(t *testing.T) {
 	// 正常情况
-	buffer := make([]byte, len(expectedEncodedDNS))
+	buffer := make([]byte, len(testedDNSEncoded))
 	_, err := testedDNS.EncodeToBuffer(buffer)
 	if err != nil {
 		t.Errorf("DNSEncodeToBuffer() failed:\n%s\n%s",
 			utils.ErrorMismatch, err.Error())
 	}
-	if !bytes.Equal(buffer, expectedEncodedDNS) {
+	if !bytes.Equal(buffer, testedDNSEncoded) {
 		t.Errorf("DNSEncodeToBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, buffer, expectedEncodedDNS)
+			utils.ResultMismatch, buffer, testedDNSEncoded)
 	}
 
 	// 缓冲区长度不足
@@ -219,6 +273,33 @@ func TestDNSEncodeToBuffer(t *testing.T) {
 	_, err = testedDNS.EncodeToBuffer(buffer)
 	if err == nil {
 		t.Errorf("DNSEncodeToBuffer() failed:\n%s\n%s",
+			utils.ErrorMismatch, "expected an error but got nil")
+	}
+}
+
+// 测试 DNS 的 DecodeFromBuffer 方法
+func TestDNSDecodeFromBuffer(t *testing.T) {
+	// 正常情况
+	decodedDNS := DNS{}
+	offset, err := decodedDNS.DecodeFromBuffer(testedDNSEncoded, 0)
+	if err != nil {
+		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\n%s",
+			utils.ErrorMismatch, err.Error())
+	}
+	if offset != len(testedDNSEncoded) {
+		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\ngot:%d\nexpected: %d",
+			utils.ResultMismatch, offset, len(testedDNSEncoded))
+	}
+	if !decodedDNS.Equal(&testedDNS) {
+		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v\n",
+			utils.ResultMismatch, decodedDNS.String(), testedDNS.String())
+	}
+
+	// 缓冲区长度不足
+	decodedDNS = DNS{}
+	_, err = decodedDNS.DecodeFromBuffer(testedDNSEncoded, 1)
+	if err == nil {
+		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\n%s",
 			utils.ErrorMismatch, "expected an error but got nil")
 	}
 }

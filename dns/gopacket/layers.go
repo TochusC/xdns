@@ -6,23 +6,29 @@ package dns
 import (
 	"errors"
 
+	"github.com/tochusc/godns/dns"
 	"github.com/tochusc/gopacket"
 	"github.com/tochusc/gopacket/layers"
 )
 
+type DNS struct {
+	layers.BaseLayer
+	godns dns.DNS
+}
+
 // LayerType 返回DNS层类型，实现了gopacket.Layer接口。
-func (dns *DNS) LayerType() gopacket.LayerType { return layers.LayerTypeDNS }
+func (dns DNS) LayerType() gopacket.LayerType { return layers.LayerTypeDNS }
 
 // SerializeTo 序列化DNS层到序列化缓冲区，实现了gopacket.SerializableLayer接口。
 //   - 其接收参数为 序列化缓冲区 和 序列化选项。
 //   - 返回值为 错误信息。
-func (dns *DNS) SerializeTo(serializeBuffer gopacket.SerializeBuffer, opts gopacket.SerializeOptions) error {
+func (dns DNS) SerializeTo(serializeBuffer gopacket.SerializeBuffer, opts gopacket.SerializeOptions) error {
 	// 预先分配缓冲区
-	buffer, err := serializeBuffer.PrependBytes(dns.Size())
+	buffer, err := serializeBuffer.PrependBytes(dns.godns.Size())
 	if err != nil {
 		return errors.New("DNS SerializeTo Error:\n" + err.Error())
 	}
-	_, err = dns.EncodeToBuffer(buffer)
+	_, err = dns.godns.EncodeToBuffer(buffer)
 	if err != nil {
 		return errors.New("DNS SerializeTo Error:\n" + err.Error())
 	}

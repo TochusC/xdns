@@ -73,7 +73,10 @@ func EncodeDomainNameToBuffer(name *string, buffer []byte) (int, error) {
 	return encodedLength, nil
 }
 
-// TODO: 实现域名指针
+const (
+	NamePointerFlag = 0xC0
+)
+
 // DecodeDomainName 解码域名，其接受字节切片，并返回解码后域名。
 // 返回的域名为*相对域名*，即不以'.'结尾。
 func DecodeDomainName(data []byte) string {
@@ -89,6 +92,54 @@ func DecodeDomainName(data []byte) string {
 		name = name[:len(name)-1]
 	}
 	return name
+}
+
+// DecodeDomainNameFromDNSBuffer 从 DNS 报文中解码域名。
+//   - 其接收参数为 DNS 报文 和 域名的偏移量，
+//   - 返回值为 解码后的域名, 解码后的偏移量 及 报错信息。
+//
+// 如果出现错误，返回空字符串，-1 及 相应报错 。
+func DecodeDomainNameFromBuffer(data []byte, offset int) (string, int, error) {
+	name := make([]byte, 0, 32)
+	nameLength := 0
+	dataLength := len(data)
+
+	if dataLength < offset+1 {
+		return "", -1, fmt.Errorf(
+			"DecodeDomainNameFromBuffer Error:\nbuffer is too small, require %d byte size, but got %d",
+			offset+1, dataLength)
+	}
+
+	for ; data[offset+nameLength] != 0x00; nameLength++ {
+		labelLength := int(data[offset+nameLength])
+		if labelLength >= 0xC0 {
+			// 指针指向其他位置
+			pointer := int(data[offset+nameLength])<<8 + int(data[offset+nameLength+1])
+			pointer &= 0x3FFF
+			decodedName, _, err := DecodeDomainNameFromBuffer(data, pointer)
+			if err != nil {
+				return "", -1, err
+			}
+			name = append(name, []byte(decodedName)...)
+			nameLength++
+			break
+		}
+
+		if dataLength < offset+nameLength+labelLength+1 {
+			return "", -1, fmt.Errorf(
+				"DecodeDomainNameFromBuffer Error:\nbuffer is too small, require %d byte size, but got %d",
+				offset+nameLength+1+labelLength, dataLength)
+		}
+
+		name = append(name, data[offset+nameLength+1:offset+nameLength+1+labelLength]...)
+		name = append(name, '.')
+		nameLength += labelLength
+	}
+	// 去掉最后的'.'
+	if nameLength != 0 {
+		name = name[:len(name)-1]
+	}
+	return string(name), offset + nameLength + 1, nil
 }
 
 // DecodeDomainNameToBuffer 将解码后的域名写入字节切片中。
