@@ -11,7 +11,7 @@ import (
 )
 
 // LayerType 返回DNS层类型，实现了gopacket.Layer接口。
-func (d *DNS) LayerType() gopacket.LayerType { return layers.LayerTypeDNS }
+func (dns *DNS) LayerType() gopacket.LayerType { return layers.LayerTypeDNS }
 
 // SerializeTo 序列化DNS层到序列化缓冲区，实现了gopacket.SerializableLayer接口。
 //   - 其接收参数为 序列化缓冲区 和 序列化选项。
