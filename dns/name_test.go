@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
 // name_test.go 测试name.go文件中的域名编解码功能
+
 package dns
 
 import (

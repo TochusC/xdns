@@ -13,7 +13,7 @@ import (
 
 func TestSerializeTo(t *testing.T) {
 	dns := DNS{
-		godns: dns.DNS{
+		GoDNS: dns.DNS{
 			Header: dns.DNSHeader{
 				ID:      0x1234,
 				QR:      false,

@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // rdata_test.go 文件定义了 DNS 资源记录 RDATA 的测试函数。
+
 package dns
 
 import (

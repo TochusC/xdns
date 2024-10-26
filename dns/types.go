@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // types.go 文件定义了 DNS 协议中的部分字段类型。
+
 package dns
 
 import "fmt"

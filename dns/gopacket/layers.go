@@ -13,7 +13,7 @@ import (
 
 type DNS struct {
 	layers.BaseLayer
-	godns dns.DNS
+	GoDNS dns.DNS
 }
 
 // LayerType 返回DNS层类型，实现了gopacket.Layer接口。
@@ -24,13 +24,44 @@ func (dns DNS) LayerType() gopacket.LayerType { return layers.LayerTypeDNS }
 //   - 返回值为 错误信息。
 func (dns DNS) SerializeTo(serializeBuffer gopacket.SerializeBuffer, opts gopacket.SerializeOptions) error {
 	// 预先分配缓冲区
-	buffer, err := serializeBuffer.PrependBytes(dns.godns.Size())
+	buffer, err := serializeBuffer.PrependBytes(dns.GoDNS.Size())
 	if err != nil {
 		return errors.New("DNS SerializeTo Error:\n" + err.Error())
 	}
-	_, err = dns.godns.EncodeToBuffer(buffer)
+	_, err = dns.GoDNS.EncodeToBuffer(buffer)
 	if err != nil {
 		return errors.New("DNS SerializeTo Error:\n" + err.Error())
 	}
 	return nil
+}
+
+// DecodeFromBytes 从字节切片中解码DNS层，实现了gopacket.Layer接口。
+//   - 其接收参数为 字节切片 和 解码选项。
+//   - 返回值为 解码后的字节切片 和 错误信息。
+func (dns *DNS) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
+	// 解码DNS层
+	offset, err := dns.GoDNS.DecodeFromBuffer(data, 0)
+	if err != nil {
+		return errors.New("DNS DecodeFromBytes Error:\n" + err.Error())
+	}
+	dns.BaseLayer.Contents = data[:offset]
+	dns.BaseLayer.Payload = data[offset:]
+	return nil
+}
+
+// CanDecode 返回是否可以解码DNS层，实现了gopacket.Layer接口。
+//   - 其接收参数为 字节切片。
+//   - 返回值为 是否可以解码 和 错误信息。
+func (dns DNS) CanDecode() gopacket.LayerClass {
+	return layers.LayerTypeDNS
+}
+
+// NextLayerType 返回下一层的类型，实现了gopacket.Layer接口。
+func (dns DNS) NextLayerType() gopacket.LayerType {
+	return gopacket.LayerTypePayload
+}
+
+// Payload 返回DNS层的有效载荷，实现了gopacket.Layer接口。
+func (dns DNS) Payload() []byte {
+	return dns.BaseLayer.Payload
 }

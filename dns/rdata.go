@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // rdata.go 文件定义了用于表示 DNS 资源记录 RDATA 的接口 DNSRRRDATA。
+
 package dns
 
 import (

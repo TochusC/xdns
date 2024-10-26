@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
 // dns.go 文件定义了 DNS 协议的主要消息结构。
+
 package dns
 
 import (

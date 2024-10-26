@@ -22,6 +22,7 @@
 //   - 以指针结尾的标签序列。
 //
 // 详细内容请参阅 RFC 1035 4.1.4. Message compression
+
 package dns
 
 import (

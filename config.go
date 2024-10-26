@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // config.go 文件实现了 godns 的配置
+
 package godns
 
 import "net"
