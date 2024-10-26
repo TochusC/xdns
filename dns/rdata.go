@@ -59,6 +59,17 @@ type DNSRRRDATA interface {
 	DecodeFromBuffer(buffer []byte, offset int) (int, error)
 }
 
+// InitDNSRRRDATA 函数根据 DNS 资源记录的类型返回对应的 RDATA 结构体。
+func InitDNSRRRDATA(rtype DNSType) DNSRRRDATA {
+	switch rtype {
+	case DNSRRTypeA:
+		return &DNSRDATAA{}
+	case DNSRRTypeCNAME:
+		return &DNSRDATACNAME{}
+	}
+	return nil
+}
+
 // A RDATA 编码格式
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 // |                    ADDRESS                    |
@@ -88,7 +99,6 @@ func (rdata *DNSRDATAA) String() string {
 	)
 }
 
-// Encode 方法返回编码后的 RDATA 部分。
 func (rdata *DNSRDATAA) Encode() []byte {
 	return rdata.Address.To4()
 }
@@ -120,6 +130,14 @@ func (rdata *DNSRDATAA) DecodeFromBuffer(buffer []byte, offset int) (int, error)
 }
 
 // NS RDATA 编码格式
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                      NS                       |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+// DNSRDATANS 结构体表示 NS 类型的 DNS 资源记录的 RDATA 部分。
+// - 其包含一个域名。
+// RFC 1035 3.3.11 节 定义了 NS 类型的 DNS 资源记录。
+// 其 Type 值为 2。
 type DNSNSRDATA struct {
 	NS string
 }
@@ -151,15 +169,20 @@ func (rdata *DNSNSRDATA) Encode() []byte {
 }
 
 func (rdata *DNSNSRDATA) EncodeToBuffer(buffer []byte) (int, error) {
-	rdataSize := rdata.Size()
-	if len(buffer) < rdataSize {
-		return -1, fmt.Errorf("buffer length %d is less than NS RDATA size %d", len(buffer), rdataSize)
-	}
-	_, err := EncodeDomainNameToBuffer(&rdata.NS, buffer)
+	rdataSize, err := EncodeDomainNameToBuffer(&rdata.NS, buffer)
 	if err != nil {
 		return -1, err
 	}
 	return rdataSize, nil
+}
+
+func (rdata *DNSNSRDATA) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	var err error
+	rdata.NS, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
+	if err != nil {
+		return -1, fmt.Errorf("decode NS failed: \n%v", err)
+	}
+	return offset, nil
 }
 
 // CNAME RDATA 编码格式
@@ -167,23 +190,23 @@ func (rdata *DNSNSRDATA) EncodeToBuffer(buffer []byte) (int, error) {
 // |                     CNAME                     |
 // +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 
-// DNSCNAMERDATA 结构体表示 CNAME 类型的 DNS 资源记录的 RDATA 部分。
+// DNSRDATACNAME 结构体表示 CNAME 类型的 DNS 资源记录的 RDATA 部分。
 // - 其包含一个域名。
 // RFC 1035 3.3.1 节 定义了 CNAME 类型的 DNS 资源记录。
 // 其 Type 值为 5。
-type DNSCNAMERDATA struct {
+type DNSRDATACNAME struct {
 	CNAME string
 }
 
-func (rdata *DNSCNAMERDATA) Type() DNSType {
+func (rdata *DNSRDATACNAME) Type() DNSType {
 	return DNSRRTypeCNAME
 }
 
-func (rdata *DNSCNAMERDATA) Size() int {
-	return len(rdata.CNAME) + 1
+func (rdata *DNSRDATACNAME) Size() int {
+	return GetNameWireLength(&rdata.CNAME)
 }
 
-func (rdata *DNSCNAMERDATA) String() string {
+func (rdata *DNSRDATACNAME) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"CNAME: ", rdata.CNAME, "\n",
@@ -191,22 +214,23 @@ func (rdata *DNSCNAMERDATA) String() string {
 	)
 }
 
-func (rdata *DNSCNAMERDATA) Encode() []byte {
-	return []byte(rdata.CNAME)
+func (rdata *DNSRDATACNAME) Encode() []byte {
+	return EncodeDomainName(&rdata.CNAME)
 }
 
-func (rdata *DNSCNAMERDATA) EncodeToBuffer(buffer []byte) (int, error) {
-	if len(buffer) < rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than CNAME RDATA size %d", len(buffer), rdata.Size())
+func (rdata *DNSRDATACNAME) EncodeToBuffer(buffer []byte) (int, error) {
+	len, err := EncodeDomainNameToBuffer(&rdata.CNAME, buffer)
+	if err != nil {
+		return -1, err
 	}
-	copy(buffer, rdata.Encode())
-	return rdata.Size(), nil
+	return len, nil
 }
 
-func InitDNSRRRDATA(rtype DNSType) DNSRRRDATA {
-	switch rtype {
-	case DNSRRTypeA:
-		return &DNSRDATAA{}
+func (rdata *DNSRDATACNAME) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	var err error
+	rdata.CNAME, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
+	if err != nil {
+		return -1, fmt.Errorf("decode CNAME failed: \n%v", err)
 	}
-	return nil
+	return offset, nil
 }

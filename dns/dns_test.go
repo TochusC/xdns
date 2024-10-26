@@ -6,8 +6,6 @@ package dns
 import (
 	"bytes"
 	"testing"
-
-	"github.com/tochusc/godns/utils"
 )
 
 // 待测试的 DNSHeader 对象。
@@ -39,8 +37,8 @@ func TestDNSHeaderSize(t *testing.T) {
 	size := testedDNSHeader.Size()
 	expectedSize := len(testedDNSHeaderEncoded)
 	if size != expectedSize {
-		t.Errorf("DNSHeaderSize() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, size, expectedSize)
+		t.Errorf(" function DNSHeaderSize() failed:\ngot:%d\nexpected: %d",
+			size, expectedSize)
 	}
 }
 
@@ -53,8 +51,8 @@ func TestDNSHeaderString(t *testing.T) {
 func TestDNSHeaderEncode(t *testing.T) {
 	encodedDNSHeader := testedDNSHeader.Encode()
 	if !bytes.Equal(encodedDNSHeader, testedDNSHeaderEncoded) {
-		t.Errorf("DNSHeaderEncode() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, encodedDNSHeader, testedDNSHeaderEncoded)
+		t.Errorf(" function DNSHeaderEncode() failed:\ngot:\n%v\nexpected:\n%v",
+			encodedDNSHeader, testedDNSHeaderEncoded)
 	}
 }
 
@@ -64,20 +62,18 @@ func TestDNSHeaderEncodeToBuffer(t *testing.T) {
 	buffer := make([]byte, 12)
 	_, err := testedDNSHeader.EncodeToBuffer(buffer)
 	if err != nil {
-		t.Errorf("DNSHeaderEncodeToBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, err.Error())
+		t.Errorf(" function DNSHeaderEncodeToBuffer() failed:\n%s", err)
 	}
 	if !bytes.Equal(buffer, testedDNSHeaderEncoded) {
-		t.Errorf("DNSHeaderEncodeToBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, buffer, testedDNSHeaderEncoded)
+		t.Errorf(" function DNSHeaderEncodeToBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			buffer, testedDNSHeaderEncoded)
 	}
 
 	// 缓冲区长度不足
 	buffer = make([]byte, 11)
 	_, err = testedDNSHeader.EncodeToBuffer(buffer)
 	if err == nil {
-		t.Errorf("DNSHeaderEncodeToBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, "expected an error but got nil")
+		t.Error("function DNSHeaderEncodeToBuffer() failed: expected an error but got nil")
 	}
 }
 
@@ -87,24 +83,22 @@ func TestDNSHeaderDecodeFromBuffer(t *testing.T) {
 	decodedDNSHeader := DNSHeader{}
 	offset, err := decodedDNSHeader.DecodeFromBuffer(testedDNSHeaderEncoded, 0)
 	if err != nil {
-		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, err.Error())
+		t.Errorf("function DNSHeaderDecodeFromBuffer() failed:\n%s", err)
 	}
 	if offset != 12 {
-		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, offset, 12)
+		t.Errorf("function DNSHeaderDecodeFromBuffer() failed:\ngot:%d\nexpected: %d",
+			offset, 12)
 	}
 	if decodedDNSHeader != testedDNSHeader {
-		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, decodedDNSHeader, testedDNSHeader)
+		t.Errorf("function DNSHeaderDecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			decodedDNSHeader, testedDNSHeader)
 	}
 
 	// 缓冲区长度不足
 	decodedDNSHeader = DNSHeader{}
 	offset, err = decodedDNSHeader.DecodeFromBuffer(testedDNSHeaderEncoded, 1)
 	if err == nil {
-		t.Errorf("DNSHeaderDecodeFromBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, "expected an error but got nil")
+		t.Error("function DNSHeaderDecodeFromBuffer() failed: expected an error but got nil")
 	}
 }
 
@@ -117,9 +111,9 @@ var testedDNSQuestion = DNSQuestion{
 
 // DNSQuestion 的期望编码结果。
 var testedDNSQuestionEncoded = []byte{
-	0x03, 0x77, 0x77, 0x77,
-	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
-	0x03, 0x63, 0x6f, 0x6d,
+	0x03, 'w', 'w', 'w',
+	0x07, 'e', 'x', 'a', 'm', 'p', 'l', 'e',
+	0x03, 'c', 'o', 'm',
 	0x00,
 	0x00, 0x01, 0x00, 0x01,
 }
@@ -129,8 +123,8 @@ func TestDNSQuestionSize(t *testing.T) {
 	size := testedDNSQuestion.Size()
 	expectedSize := len(testedDNSQuestionEncoded)
 	if size != expectedSize {
-		t.Errorf("DNSQuestionSize() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, size, expectedSize)
+		t.Errorf("function DNSQuestionSize() failed:\ngot:%d\nexpected: %d",
+			size, expectedSize)
 	}
 }
 
@@ -143,8 +137,8 @@ func TestDNSQuestionString(t *testing.T) {
 func TestDNSQuestionEncode(t *testing.T) {
 	encodedDNSQuestion := testedDNSQuestion.Encode()
 	if !bytes.Equal(encodedDNSQuestion, testedDNSQuestionEncoded) {
-		t.Errorf("DNSQuestionEncode() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, encodedDNSQuestion, testedDNSQuestionEncoded)
+		t.Errorf("function DNSQuestionEncode() failed:\ngot:\n%v\nexpected:\n%v",
+			encodedDNSQuestion, testedDNSQuestionEncoded)
 	}
 }
 
@@ -154,20 +148,18 @@ func TestDNSQuestionEncodeToBuffer(t *testing.T) {
 	buffer := make([]byte, len(testedDNSQuestionEncoded))
 	_, err := testedDNSQuestion.EncodeToBuffer(buffer)
 	if err != nil {
-		t.Errorf("DNSQuestionEncodeToBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, err.Error())
+		t.Errorf("function DNSQuestionEncodeToBuffer() failed:\n%s", err)
 	}
 	if !bytes.Equal(buffer, testedDNSQuestionEncoded) {
-		t.Errorf("DNSQuestionEncodeToBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, buffer, testedDNSQuestionEncoded)
+		t.Errorf("function DNSQuestionEncodeToBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			buffer, testedDNSQuestionEncoded)
 	}
 
 	// 缓冲区长度不足
 	buffer = make([]byte, 19)
 	_, err = testedDNSQuestion.EncodeToBuffer(buffer)
 	if err == nil {
-		t.Errorf("DNSQuestionEncodeToBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, "expected an error but got nil")
+		t.Errorf("function DNSQuestionEncodeToBuffer() failed: expected an error but got nil")
 	}
 }
 
@@ -177,24 +169,22 @@ func TestDNSQuestionDecodeFromBuffer(t *testing.T) {
 	decodedDNSQuestion := DNSQuestion{}
 	offset, err := decodedDNSQuestion.DecodeFromBuffer(testedDNSQuestionEncoded, 0)
 	if err != nil {
-		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, err.Error())
+		t.Errorf(" function DNSQuestionDecodeFromBuffer() failed:\n%s", err)
 	}
 	if offset != len(testedDNSQuestionEncoded) {
-		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, offset, len(testedDNSQuestionEncoded))
+		t.Errorf(" function DNSQuestionDecodeFromBuffer() failed:\ngot:%d\nexpected: %d",
+			offset, len(testedDNSQuestionEncoded))
 	}
 	if decodedDNSQuestion != testedDNSQuestion {
-		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, decodedDNSQuestion, testedDNSQuestion)
+		t.Errorf(" function DNSQuestionDecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			decodedDNSQuestion, testedDNSQuestion)
 	}
 
 	// 缓冲区长度不足
 	decodedDNSQuestion = DNSQuestion{}
 	_, err = decodedDNSQuestion.DecodeFromBuffer(testedDNSQuestionEncoded, 1)
 	if err == nil {
-		t.Errorf("DNSQuestionDecodeFromBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, "expected an error but got nil")
+		t.Errorf(" function DNSQuestionDecodeFromBuffer() failed: expected an error but got nil")
 	}
 }
 
@@ -217,15 +207,15 @@ var testedDNSEncoded = []byte{
 	0x00, 0x02, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00,
 	// Question 1
-	0x03, 0x77, 0x77, 0x77,
-	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
-	0x03, 0x63, 0x6f, 0x6d,
+	0x03, 'w', 'w', 'w',
+	0x07, 'e', 'x', 'a', 'm', 'p', 'l', 'e',
+	0x03, 'c', 'o', 'm',
 	0x00,
 	0x00, 0x01, 0x00, 0x01,
 	// Question 2
-	0x03, 0x77, 0x77, 0x77,
-	0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65,
-	0x03, 0x63, 0x6f, 0x6d,
+	0x03, 'w', 'w', 'w',
+	0x07, 'e', 'x', 'a', 'm', 'p', 'l', 'e',
+	0x03, 'c', 'o', 'm',
 	0x00,
 	0x00, 0x01, 0x00, 0x01,
 }
@@ -235,8 +225,8 @@ func TestDNSSize(t *testing.T) {
 	size := testedDNS.Size()
 	expectedSize := len(testedDNSEncoded)
 	if size != expectedSize {
-		t.Errorf("DNSSize() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, size, expectedSize)
+		t.Errorf(" function DNSSize() failed:\ngot:%d\nexpected: %d",
+			size, expectedSize)
 	}
 }
 
@@ -249,8 +239,8 @@ func TestDNSString(t *testing.T) {
 func TestDNSEncode(t *testing.T) {
 	encodedDNS := testedDNS.Encode()
 	if !bytes.Equal(encodedDNS, testedDNSEncoded) {
-		t.Errorf("DNSEncode() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, encodedDNS, testedDNSEncoded)
+		t.Errorf(" function DNSEncode() failed:\ngot:\n%v\nexpected:\n%v",
+			encodedDNS, testedDNSEncoded)
 	}
 }
 
@@ -260,20 +250,18 @@ func TestDNSEncodeToBuffer(t *testing.T) {
 	buffer := make([]byte, len(testedDNSEncoded))
 	_, err := testedDNS.EncodeToBuffer(buffer)
 	if err != nil {
-		t.Errorf("DNSEncodeToBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, err.Error())
+		t.Errorf(" function DNSEncodeToBuffer() failed:\n%s", err)
 	}
 	if !bytes.Equal(buffer, testedDNSEncoded) {
-		t.Errorf("DNSEncodeToBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, buffer, testedDNSEncoded)
+		t.Errorf(" function DNSEncodeToBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			buffer, testedDNSEncoded)
 	}
 
 	// 缓冲区长度不足
 	buffer = make([]byte, 1)
 	_, err = testedDNS.EncodeToBuffer(buffer)
 	if err == nil {
-		t.Errorf("DNSEncodeToBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, "expected an error but got nil")
+		t.Errorf(" function DNSEncodeToBuffer() failed: expected an error but got nil")
 	}
 }
 
@@ -283,23 +271,21 @@ func TestDNSDecodeFromBuffer(t *testing.T) {
 	decodedDNS := DNS{}
 	offset, err := decodedDNS.DecodeFromBuffer(testedDNSEncoded, 0)
 	if err != nil {
-		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, err.Error())
+		t.Errorf(" function DNSDecodeFromBuffer() failed:\n%s", err)
 	}
 	if offset != len(testedDNSEncoded) {
-		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, offset, len(testedDNSEncoded))
+		t.Errorf(" function DNSDecodeFromBuffer() failed:\ngot:%d\nexpected: %d",
+			offset, len(testedDNSEncoded))
 	}
 	if !decodedDNS.Equal(&testedDNS) {
-		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\ngot:\n%v\nexpected:\n%v\n",
-			utils.ResultMismatch, decodedDNS.String(), testedDNS.String())
+		t.Errorf(" function DNSDecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			decodedDNS.String(), testedDNS.String())
 	}
 
 	// 缓冲区长度不足
 	decodedDNS = DNS{}
 	_, err = decodedDNS.DecodeFromBuffer(testedDNSEncoded, 1)
 	if err == nil {
-		t.Errorf("DNSDecodeFromBuffer() failed:\n%s\n%s",
-			utils.ErrorMismatch, "expected an error but got nil")
+		t.Errorf(" function DNSDecodeFromBuffer() failed:\n expected an error but got nil")
 	}
 }

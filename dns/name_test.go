@@ -6,8 +6,6 @@ package dns
 import (
 	"bytes"
 	"testing"
-
-	"github.com/tochusc/godns/utils"
 )
 
 // 测试域名 www.example.com
@@ -29,15 +27,15 @@ func TestGetNameWireLength(t *testing.T) {
 	nameLength := GetNameWireLength(&testedDomainName)
 	expectedLength := len(expectedEncodedName)
 	if nameLength != expectedLength {
-		t.Errorf("GetNameWireLength() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, nameLength, expectedLength)
+		t.Errorf("function GetNameWireLength() failed:\ngot:%d\nexpected: %d",
+			nameLength, expectedLength)
 	}
 
 	// 测试绝对域名
 	nameLength = GetNameWireLength(&testedAbsDomainName)
 	if nameLength != expectedLength {
-		t.Errorf("GetNameWireLength() failed:\n%s\ngot:%d\nexpected: %d",
-			utils.ResultMismatch, nameLength, expectedLength)
+		t.Errorf("function GetNameWireLength() failed:\ngot:%d\nexpected: %d",
+			nameLength, expectedLength)
 	}
 }
 
@@ -47,15 +45,15 @@ func TestEncodeDomainName(t *testing.T) {
 	encodedName := EncodeDomainName(&testedDomainName)
 	if !bytes.Equal(encodedName, expectedEncodedName) {
 		t.Errorf(
-			"EncodeDomainName() failed:\n%s\ngot:\n%v\n expected:\n%v",
-			utils.ResultMismatch, encodedName, expectedEncodedName)
+			"EncodeDomainName() failed:\ngot:\n%v\n expected:\n%v",
+			encodedName, expectedEncodedName)
 	}
 
 	// 测试绝对域名
 	encodedName = EncodeDomainName(&testedAbsDomainName)
 	if !bytes.Equal(encodedName, expectedEncodedName) {
-		t.Errorf("EncodeDomainName() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ResultMismatch, encodedName, expectedEncodedName)
+		t.Errorf("function EncodeDomainName() failed:\ngot:\n%v\nexpected:\n%v",
+			encodedName, expectedEncodedName)
 	}
 }
 
@@ -63,8 +61,8 @@ func TestEncodeDomainName(t *testing.T) {
 func TestDecodeDomainName(t *testing.T) {
 	decodedName := DecodeDomainName(expectedEncodedName)
 	if decodedName != testedDomainName {
-		t.Errorf("DecodeDomainName() failed:\n%s\ngot: %s\nexpected: %s",
-			utils.ResultMismatch, decodedName, testedDomainName)
+		t.Errorf("function DecodeDomainName() failed:\ngot: %s\nexpected: %s",
+			decodedName, testedDomainName)
 	}
 }
 
@@ -74,17 +72,17 @@ func TestEncodeDomainNameToBuffer(t *testing.T) {
 	buffer := make([]byte, len(expectedEncodedName))
 	_, err := EncodeDomainNameToBuffer(&testedDomainName, buffer)
 	if err != nil {
-		t.Errorf("EncodeDomainNameToBuffer() failed:\n%s\ngot: %s\nexpected: nil", utils.ErrorMismatch, err)
+		t.Errorf("function EncodeDomainNameToBuffer() failed:\ngot: %s\nexpected: nil", err)
 	}
 	if !bytes.Equal(buffer, expectedEncodedName) {
-		t.Errorf("EncodeDomainNameToBuffer() failed:\n%s\ngot: %v\nexpected: %v", utils.ResultMismatch, buffer, expectedEncodedName)
+		t.Errorf("function EncodeDomainNameToBuffer() failed:\ngot: %v\nexpected: %v", buffer, expectedEncodedName)
 	}
 
 	// 测试能否处理缓冲区过小的情况
 	buffer = make([]byte, len(expectedEncodedName)-1)
 	_, err = EncodeDomainNameToBuffer(&testedDomainName, buffer)
 	if err == nil {
-		t.Errorf("EncodeDomainNameToBuffer() failed:\n%s\ngot: nil\nexpected: error", utils.ErrorMismatch)
+		t.Errorf("function EncodeDomainNameToBuffer() failed:\ngot: nil\nexpected: error")
 	}
 }
 
@@ -93,9 +91,9 @@ func TestDecodeDomainNameFromBuffer(t *testing.T) {
 	buffer := make([]byte, len(testedDomainName))
 	_, err := DecodeDomainNameToBuffer(expectedEncodedName, buffer)
 	if err != nil {
-		t.Errorf("DecodeDomainNameFromBuffer() failed:\n%s\ngot: \n%s\n\nexpected: nil", utils.ErrorMismatch, err)
+		t.Errorf("function DecodeDomainNameFromBuffer() failed:\ngot: \n%s\n\nexpected: nil", err)
 	}
 	if string(buffer) != testedDomainName {
-		t.Errorf("DecodeDomainNameFromBuffer() failed:\n%s\ngot: %v\nexpected: %v", utils.ResultMismatch, buffer, []byte(testedDomainName))
+		t.Errorf("function DecodeDomainNameFromBuffer() failed:\ngot: %v\nexpected: %v", buffer, []byte(testedDomainName))
 	}
 }

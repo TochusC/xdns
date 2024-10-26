@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/tochusc/godns/utils"
 	"github.com/tochusc/gopacket/pcap"
 )
 
@@ -16,14 +15,14 @@ func main() {
 	// GoDNS 启动！
 	fmt.Printf("%s : %s\n", time.Now().Format(time.ANSIC), "GoDNS Starts!")
 
-	handleSend, err := pcap.OpenLive(utils.DNSSeverNetworkDevice, 1024, false, 0*time.Second)
+	handleSend, err := pcap.OpenLive(DNSSeverNetworkDevice, 1024, false, 0*time.Second)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		os.Exit(1)
 	}
 	defer handleSend.Close()
 
-	handleRecv, err := pcap.OpenLive(utils.DNSSeverNetworkDevice, 1024, false, time.Nanosecond)
+	handleRecv, err := pcap.OpenLive(DNSSeverNetworkDevice, 1024, false, time.Nanosecond)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		os.Exit(1)
@@ -31,7 +30,7 @@ func main() {
 	defer handleRecv.Close()
 
 	// 设置过滤器
-	var filter = fmt.Sprintf("ip and udp dst port %d", utils.DNSServerPort)
+	var filter = fmt.Sprintf("ip and udp dst port %d", DNSServerPort)
 	err = handleRecv.SetBPFFilter(filter)
 	if err != nil {
 		fmt.Println("Error: ", err)

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/tochusc/godns/dns"
-	"github.com/tochusc/godns/utils"
 	"github.com/tochusc/gopacket"
 	"github.com/tochusc/gopacket/layers"
 )
@@ -64,12 +63,12 @@ func TestSerializeTo(t *testing.T) {
 
 	err := udp.SetNetworkLayerForChecksum(ip)
 	if err != nil {
-		t.Errorf("SetNetworkLayerForChecksum() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ErrorMismatch, err, nil)
+		t.Errorf("function SetNetworkLayerForChecksum() failed:\ngot:\n%v\nexpected:\n%v",
+			err, nil)
 	}
 	err = gopacket.SerializeLayers(serializeBuffer, opts, eth, ip, udp, &dns)
 	if err != nil {
-		t.Errorf("SerializeTo() failed:\n%s\ngot:\n%v\nexpected:\n%v",
-			utils.ErrorMismatch, err, nil)
+		t.Errorf("function SerializeTo() failed:\ngot:\n%v\nexpected:\n%v",
+			err, nil)
 	}
 }
