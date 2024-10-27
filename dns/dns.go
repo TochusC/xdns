@@ -11,22 +11,22 @@ import (
 	"os"
 )
 
-// DNS 消息结构定义在 RFC 1034 / RFC 1035 中
+// DNS消息结构定义在 RFC 1034 / RFC 1035 中
 // +---------------------+
-// |        Header       | // DNS 头部，包含查询ID，标志位，查询数量，回答数量，授权数量，附加数量等信息
+// |        Header       | // DNS消息 头部，包含查询ID，标志位，查询数量，回答数量，授权数量，附加数量等信息
 // +---------------------+
-// |       Question      | // DNS 查询部分，包含查询的域名和查询类型
+// |       Question      | // DNS消息 查询部分，包含查询的域名和查询类型
 // +---------------------+
-// |        Answer       | // DNS 回答部分，包含查询的结果
+// |        Answer       | // DNS消息 回答部分，包含查询的结果
 // +---------------------+
-// |      Authority      | // DNS 权威部分，包含授权的域名服务器
+// |      Authority      | // DNS消息 权威部分，包含授权的域名服务器
 // +---------------------+
-// |      Additional     | // DNS 附加部分，包含额外的信息
+// |      Additional     | // DNS消息 附加部分，包含额外的信息
 // +---------------------+
 
-// DNS 表示 DNS协议 的消息结构。
-type DNS struct {
-	// DNS 消息头部
+// DNSMessage 表示 DNS协议 的消息结构。
+type DNSMessage struct {
+	// DNS消息 头部
 	Header DNSHeader // DNS 头部（Header）
 	// DNS消息的各个部分（Section）
 	Question   DNSQuestionSection // DNS 查询部分（Questions Section）
@@ -127,72 +127,71 @@ type DNSResourceRecord struct {
 	RData DNSRRRDATA
 }
 
-// DNS 相关方法定义
+// DNSMessage 相关方法定义
 
-// Size 返回DNS层的*准确（也是实际上的）*大小
+// Size 返回DNSMessage的*准确（也是实际上的）*大小
 // 错误的字段值不会影响Size的计算。
-func (dns *DNS) Size() int {
-	size := dns.Header.Size()
-	for _, question := range dns.Question {
+func (dnsMessage *DNSMessage) Size() int {
+	size := dnsMessage.Header.Size()
+	for _, question := range dnsMessage.Question {
 		size += question.Size()
 	}
-	for _, answer := range dns.Answer {
+	for _, answer := range dnsMessage.Answer {
 		size += answer.Size()
 	}
-	for _, authority := range dns.Authority {
+	for _, authority := range dnsMessage.Authority {
 		size += authority.Size()
 	}
-	for _, additional := range dns.Additional {
+	for _, additional := range dnsMessage.Additional {
 		size += additional.Size()
 	}
 	return size
 }
 
-func (dns *DNS) String() string {
+func (dnsMessage *DNSMessage) String() string {
 	return fmt.Sprint(
 		"### DNS Message ###\n",
-		dns.Header.String(), "\n",
-		dns.Question.String(),
-		dns.Answer.String(),
-		dns.Authority.String(),
-		dns.Additional.String(),
-		"### End of DNS Message ###",
+		dnsMessage.Header.String(), "\n",
+		dnsMessage.Question.String(),
+		dnsMessage.Answer.String(),
+		dnsMessage.Authority.String(),
+		dnsMessage.Additional.String(),
 	)
 }
 
 // Equal 检查两个DNS消息是否相等。
-func (dns *DNS) Equal(other *DNS) bool {
-	if dns.Header != other.Header {
+func (dnsMessage *DNSMessage) Equal(other *DNSMessage) bool {
+	if dnsMessage.Header != other.Header {
 		return false
 	}
-	if len(dns.Question) != len(other.Question) {
+	if len(dnsMessage.Question) != len(other.Question) {
 		return false
 	}
-	for i, question := range dns.Question {
+	for i, question := range dnsMessage.Question {
 		if question != other.Question[i] {
 			return false
 		}
 	}
-	if len(dns.Answer) != len(other.Answer) {
+	if len(dnsMessage.Answer) != len(other.Answer) {
 		return false
 	}
-	for i, answer := range dns.Answer {
+	for i, answer := range dnsMessage.Answer {
 		if answer != other.Answer[i] {
 			return false
 		}
 	}
-	if len(dns.Authority) != len(other.Authority) {
+	if len(dnsMessage.Authority) != len(other.Authority) {
 		return false
 	}
-	for i, authority := range dns.Authority {
+	for i, authority := range dnsMessage.Authority {
 		if authority != other.Authority[i] {
 			return false
 		}
 	}
-	if len(dns.Additional) != len(other.Additional) {
+	if len(dnsMessage.Additional) != len(other.Additional) {
 		return false
 	}
-	for i, additional := range dns.Additional {
+	for i, additional := range dnsMessage.Additional {
 		if additional != other.Additional[i] {
 			return false
 		}
@@ -200,44 +199,44 @@ func (dns *DNS) Equal(other *DNS) bool {
 	return true
 }
 
-// Encode 将DNS层编码到字节切片中。
-func (dns *DNS) Encode() []byte {
-	bytesArray := make([]byte, dns.Size())
+// Encode 将DNSMessage编码到字节切片中。
+func (dnsMessage *DNSMessage) Encode() []byte {
+	bytesArray := make([]byte, dnsMessage.Size())
 	// 编码头部
-	offset, err := dns.Header.EncodeToBuffer(bytesArray)
+	offset, err := dnsMessage.Header.EncodeToBuffer(bytesArray)
 	if err != nil {
-		fmt.Println("DNS Encode Error(Header):\n", err)
+		fmt.Println("method DNSMessage Encode Error(Header):\n", err)
 		os.Exit(1)
 	}
 
 	// 编码查询部分
-	increment, err := dns.Question.EncodeToBuffer(bytesArray[offset:])
+	increment, err := dnsMessage.Question.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("DNS Encode Error(Question Section):\n", err)
+		fmt.Println("method DNSMessage Encode Error(Question Section):\n", err)
 		os.Exit(1)
 	}
 	// 编码回答部分
-	increment, err = dns.Answer.EncodeToBuffer(bytesArray[offset:])
+	increment, err = dnsMessage.Answer.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("DNS Encode Error(Answer Section):\n", err)
+		fmt.Println("method DNSMessage Encode Error(Answer Section):\n", err)
 		os.Exit(1)
 	}
 
 	// 编码权威部分
-	increment, err = dns.Authority.EncodeToBuffer(bytesArray[offset:])
+	increment, err = dnsMessage.Authority.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("DNS Encode Error(Authority Section):\n", err)
+		fmt.Println("method DNS Encode Error(Authority Section):\n", err)
 		os.Exit(1)
 	}
 
 	// 编码附加部分
-	increment, err = dns.Additional.EncodeToBuffer(bytesArray[offset:])
+	increment, err = dnsMessage.Additional.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("DNS Encode Error(Additional Section):\n", err)
+		fmt.Println("method DNS Encode Error(Additional Section):\n", err)
 		os.Exit(1)
 	}
 
@@ -245,50 +244,50 @@ func (dns *DNS) Encode() []byte {
 	return bytesArray
 }
 
-// EncodeToBuffer 将DNS层编码到传入的缓冲区中。
+// EncodeToBuffer 将DNS消息编码到传入的缓冲区中。
 // - 其接收参数：缓冲区
 // - 返回值为 写入字节数 和 错误信息。
 // 如果出现错误，返回 -1 和 相应报错。
-func (dns *DNS) EncodeToBuffer(buffer []byte) (int, error) {
+func (dnsMessage *DNSMessage) EncodeToBuffer(buffer []byte) (int, error) {
 	// 编码头部
-	offset, err := dns.Header.EncodeToBuffer(buffer)
+	offset, err := dnsMessage.Header.EncodeToBuffer(buffer)
 	if err != nil {
-		return -1, errors.New("DNS SerializeTo Error:\n" + err.Error())
+		return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
 	}
 
 	// 编码查询部分
-	for _, question := range dns.Question {
+	for _, question := range dnsMessage.Question {
 		increment, err := question.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("DNS SerializeTo Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
 		}
 	}
 
 	// 编码回答部分
-	for _, answer := range dns.Answer {
+	for _, answer := range dnsMessage.Answer {
 		increment, err := answer.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("DNS SerializeTo Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
 		}
 	}
 
 	// 编码权威部分
-	for _, authority := range dns.Authority {
+	for _, authority := range dnsMessage.Authority {
 		increment, err := authority.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("DNS SerializeTo Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
 		}
 	}
 
 	// 编码附加部分
-	for _, additional := range dns.Additional {
+	for _, additional := range dnsMessage.Additional {
 		increment, err := additional.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("DNS SerializeTo Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
 		}
 	}
 
@@ -296,48 +295,48 @@ func (dns *DNS) EncodeToBuffer(buffer []byte) (int, error) {
 	return offset, nil
 }
 
-func (dns *DNS) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+func (dnsMessage *DNSMessage) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
 	// 解码头部
-	offset, err := dns.Header.DecodeFromBuffer(buffer, offset)
+	offset, err := dnsMessage.Header.DecodeFromBuffer(buffer, offset)
 	if err != nil {
 		return -1, err
 	}
 
-	// 根据头部字段 初始化 DNS 的各个部分
-	dns.Question = make(DNSQuestionSection, dns.Header.QDCount)
-	dns.Answer = make(DNSResponseSection, dns.Header.ANCount)
-	dns.Authority = make(DNSResponseSection, dns.Header.NSCount)
-	dns.Additional = make(DNSResponseSection, dns.Header.ARCount)
+	// 根据头部字段 初始化 DNSMessage 的各个部分
+	dnsMessage.Question = make(DNSQuestionSection, dnsMessage.Header.QDCount)
+	dnsMessage.Answer = make(DNSResponseSection, dnsMessage.Header.ANCount)
+	dnsMessage.Authority = make(DNSResponseSection, dnsMessage.Header.NSCount)
+	dnsMessage.Additional = make(DNSResponseSection, dnsMessage.Header.ARCount)
 
 	// 解码查询部分
-	for i := 0; i < int(dns.Header.QDCount); i++ {
-		offset, err = dns.Question[i].DecodeFromBuffer(buffer, offset)
+	for i := 0; i < int(dnsMessage.Header.QDCount); i++ {
+		offset, err = dnsMessage.Question[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("DNS Decode Error(Question Section#%d Offset:%d):\n%s", i, offset, err)
+			return -1, fmt.Errorf("method DNS Decode Error(Question Section#%d Offset:%d):\n%s", i, offset, err)
 		}
 	}
 
 	// 解码回答部分
-	for i := 0; i < int(dns.Header.ANCount); i++ {
-		offset, err = dns.Answer[i].DecodeFromBuffer(buffer, offset)
+	for i := 0; i < int(dnsMessage.Header.ANCount); i++ {
+		offset, err = dnsMessage.Answer[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("DNS Decode Error(Answer Section):\n%s", err)
+			return -1, fmt.Errorf("method DNS Decode Error(Answer Section):\n%s", err)
 		}
 	}
 
 	// 解码权威部分
-	for i := 0; i < int(dns.Header.NSCount); i++ {
-		offset, err = dns.Authority[i].DecodeFromBuffer(buffer, offset)
+	for i := 0; i < int(dnsMessage.Header.NSCount); i++ {
+		offset, err = dnsMessage.Authority[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("DNS Decode Error(Authority Section):\n%s", err)
+			return -1, fmt.Errorf("method DNS Decode Error(Authority Section):\n%s", err)
 		}
 	}
 
 	// 解码附加部分
-	for i := 0; i < int(dns.Header.ARCount); i++ {
-		offset, err = dns.Additional[i].DecodeFromBuffer(buffer, offset)
+	for i := 0; i < int(dnsMessage.Header.ARCount); i++ {
+		offset, err = dnsMessage.Additional[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("DNS Decode Error(Additional Section):\n%s", err)
+			return -1, fmt.Errorf("method DNS Decode Error(Additional Section):\n%s", err)
 		}
 	}
 
@@ -369,8 +368,7 @@ func (dns *DNSHeader) String() string {
 		"QDCount: ", dns.QDCount, "\n",
 		"ANCount: ", dns.ANCount, "\n",
 		"NSCount: ", dns.NSCount, "\n",
-		"ARCount: ", dns.ARCount, "\n",
-		"### End of DNS Header ###",
+		"ARCount: ", dns.ARCount,
 	)
 }
 
@@ -454,10 +452,10 @@ func (dnsHeader *DNSHeader) DecodeFromBuffer(buffer []byte, offset int) (int, er
 	flags := binary.BigEndian.Uint16(buffer[offset+2:])
 	dnsHeader.QR = flags>>15 == 1
 	dnsHeader.OpCode = DNSOpCode((flags >> 11) & 0x0f)
-	dnsHeader.AA = flags>>10 == 1
-	dnsHeader.TC = flags>>9 == 1
-	dnsHeader.RD = flags>>8 == 1
-	dnsHeader.RA = flags>>7 == 1
+	dnsHeader.AA = flags>>10&1 == 1
+	dnsHeader.TC = flags>>9&1 == 1
+	dnsHeader.RD = flags>>8&1 == 1
+	dnsHeader.RA = flags>>7&1 == 1
 	dnsHeader.Z = uint8((flags >> 4) & 0x07)
 	dnsHeader.RCode = DNSResponseCode(flags & 0x0f)
 	dnsHeader.QDCount = binary.BigEndian.Uint16(buffer[offset+4:])
@@ -481,8 +479,7 @@ func (dnsQuestion *DNSQuestion) String() string {
 		"### DNS Question ###\n",
 		"Name: ", dnsQuestion.Name, "\n",
 		"Type: ", dnsQuestion.Type, "\n",
-		"Class: ", dnsQuestion.Class, "\n",
-		"### End of DNS Question ###",
+		"Class: ", dnsQuestion.Class,
 	)
 }
 
@@ -698,8 +695,7 @@ func (rr *DNSResourceRecord) String() string {
 		"Class:", rr.Class, "\n",
 		"TTL:", rr.TTL, "\n",
 		"RDLen:", rr.RDLen, "\n",
-		"RData:", rr.RData.String(), "\n",
-		"### End of DNS Resource Record ###\n",
+		"RData:\n", rr.RData.String(),
 	)
 }
 

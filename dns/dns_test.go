@@ -189,8 +189,8 @@ func TestDNSQuestionDecodeFromBuffer(t *testing.T) {
 	}
 }
 
-// 待测试的 DNS 对象。
-var testedDNS = DNS{
+// 待测试的 DNS消息 对象。
+var testedDNS = DNSMessage{
 	Header: testedDNSHeader,
 	Question: []DNSQuestion{
 		testedDNSQuestion,
@@ -201,7 +201,7 @@ var testedDNS = DNS{
 	Additional: nil,
 }
 
-// DNS 的期望编码结果。
+// DNS消息 的期望编码结果。
 var testedDNSEncoded = []byte{
 	// Header
 	0x12, 0x34, 0x04, 0x00,
@@ -269,7 +269,7 @@ func TestDNSEncodeToBuffer(t *testing.T) {
 // 测试 DNS 的 DecodeFromBuffer 方法
 func TestDNSDecodeFromBuffer(t *testing.T) {
 	// 正常情况
-	decodedDNS := DNS{}
+	decodedDNS := DNSMessage{}
 	offset, err := decodedDNS.DecodeFromBuffer(testedDNSEncoded, 0)
 	if err != nil {
 		t.Errorf(" function DNSDecodeFromBuffer() failed:\n%s", err)
@@ -284,7 +284,7 @@ func TestDNSDecodeFromBuffer(t *testing.T) {
 	}
 
 	// 缓冲区长度不足
-	decodedDNS = DNS{}
+	decodedDNS = DNSMessage{}
 	_, err = decodedDNS.DecodeFromBuffer(testedDNSEncoded, 1)
 	if err == nil {
 		t.Errorf(" function DNSDecodeFromBuffer() failed:\n expected an error but got nil")

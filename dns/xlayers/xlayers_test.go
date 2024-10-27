@@ -1,7 +1,7 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
 // layers_test.go 包含了对 gopacket SerializableLayer 接口的测试。
-package dns
+package xlayers
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ import (
 
 func TestSerializeTo(t *testing.T) {
 	dns := DNS{
-		GoDNS: dns.DNS{
+		DNSMessage: dns.DNSMessage{
 			Header: dns.DNSHeader{
 				ID:      0x1234,
 				QR:      false,

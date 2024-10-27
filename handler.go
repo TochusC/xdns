@@ -1,18 +1,21 @@
 package godns
 
-import "github.com/tochusc/gopacket"
+import "fmt"
 
-func HandlePkt(pkt gopacket.Packet) {
+func HandlePkt(pkt []byte) {
 	qInfo, _ := Parse(pkt)
 	// 根据qInfo的内容做一些什么东西
 	// ...
-	response, err := Response(qInfo.DNS)
+	// 输出QueryInfo
+	fmt.Println(qInfo.String())
+
+	rInfo, err := Response(qInfo)
 	if err != nil {
 		// 处理错误
 	}
 
-	// 发送response
-	send, err := Send(response)
+	// // 发送response
+	err = Send(rInfo)
 	if err != nil {
 		// 处理错误
 	}

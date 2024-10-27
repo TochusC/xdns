@@ -12,14 +12,7 @@ import (
 	"github.com/tochusc/gopacket/pcap"
 )
 
-func Sniff(device string, pktMax int, port int) chan gopacket.Packet {
-	handleSend, err := pcap.OpenLive(device, int32(pktMax), false, pcap.BlockForever)
-	if err != nil {
-		fmt.Println("function pcap.OpenLive Error: ", err)
-		os.Exit(1)
-	}
-	defer handleSend.Close()
-
+func Sniff(device string, pktMax int, port int) chan []byte {
 	handleRecv, err := pcap.OpenLive(device, int32(pktMax), false, pcap.BlockForever)
 	if err != nil {
 		fmt.Println("function pcap.OpenLive Error: ", err)
@@ -45,5 +38,14 @@ func Sniff(device string, pktMax int, port int) chan gopacket.Packet {
 	//	设置数据包源
 	packetSource := gopacket.NewPacketSource(handleRecv, handleRecv.LinkType())
 
-	return packetSource.Packets()
+	// 生成数据包通道
+	pktChan := make(chan []byte)
+	go func() {
+		for packet := range packetSource.Packets() {
+			pktChan <- packet.Data()
+		}
+		close(pktChan)
+	}()
+
+	return pktChan
 }

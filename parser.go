@@ -1,21 +1,22 @@
 package godns
 
 import (
-	dns "github.com/tochusc/godns/dns/gopacket"
+	"github.com/tochusc/godns/dns/xlayers"
 	"github.com/tochusc/gopacket"
 	"github.com/tochusc/gopacket/layers"
 )
 
-func Parse(pkt gopacket.Packet) (QueryInfo, error) {
+func Parse(pkt []byte) (QueryInfo, error) {
 	var eth layers.Ethernet
 	var ipv4 layers.IPv4
 	var udp layers.UDP
-	var dns dns.DNS
+	var dns xlayers.DNS
 	var decodedLayers []gopacket.LayerType
 
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet, &eth, &ipv4, &udp, &dns)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeEthernet,
+		&eth, &ipv4, &udp, &dns)
 
-	err := parser.DecodeLayers(pkt.Data(), &decodedLayers)
+	err := parser.DecodeLayers(pkt, &decodedLayers)
 	if err != nil {
 		return QueryInfo{}, err
 	}
@@ -24,7 +25,7 @@ func Parse(pkt gopacket.Packet) (QueryInfo, error) {
 		MAC:  eth.SrcMAC,
 		IP:   ipv4.SrcIP,
 		Port: int(udp.SrcPort),
-		DNS:  dns.GoDNS,
+		DNS:  &dns.DNSMessage,
 	}
 
 	return queryInfo, nil

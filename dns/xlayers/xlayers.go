@@ -1,7 +1,7 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
 // layers.go 文件实现了gopacket.Layer接口，用于实现DNS层的序列化。
-package dns
+package xlayers
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 
 type DNS struct {
 	layers.BaseLayer
-	GoDNS dns.DNS
+	DNSMessage dns.DNSMessage
 }
 
 // LayerType 返回DNS层类型，实现了gopacket.Layer接口。
@@ -24,11 +24,11 @@ func (dns DNS) LayerType() gopacket.LayerType { return layers.LayerTypeDNS }
 //   - 返回值为 错误信息。
 func (dns DNS) SerializeTo(serializeBuffer gopacket.SerializeBuffer, opts gopacket.SerializeOptions) error {
 	// 预先分配缓冲区
-	buffer, err := serializeBuffer.PrependBytes(dns.GoDNS.Size())
+	buffer, err := serializeBuffer.PrependBytes(dns.DNSMessage.Size())
 	if err != nil {
 		return errors.New("DNS SerializeTo Error:\n" + err.Error())
 	}
-	_, err = dns.GoDNS.EncodeToBuffer(buffer)
+	_, err = dns.DNSMessage.EncodeToBuffer(buffer)
 	if err != nil {
 		return errors.New("DNS SerializeTo Error:\n" + err.Error())
 	}
@@ -40,11 +40,10 @@ func (dns DNS) SerializeTo(serializeBuffer gopacket.SerializeBuffer, opts gopack
 //   - 返回值为 解码后的字节切片 和 错误信息。
 func (dns *DNS) DecodeFromBytes(data []byte, df gopacket.DecodeFeedback) error {
 	// 解码DNS层
-	offset, err := dns.GoDNS.DecodeFromBuffer(data, 0)
+	offset, err := dns.DNSMessage.DecodeFromBuffer(data, 0)
 	if err != nil {
 		return errors.New("DNS DecodeFromBytes Error:\n" + err.Error())
 	}
-	dns.BaseLayer.Contents = data[:offset]
 	dns.BaseLayer.Payload = data[offset:]
 	return nil
 }
