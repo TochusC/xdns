@@ -20,7 +20,7 @@ type Sender struct {
 
 func NewSender(conf DNSServerConfig) Sender {
 	return Sender{Handle: func() *pcap.Handle {
-		sender, err := pcap.OpenLive(conf.DNSSeverNetworkDevice, int32(conf.MTU), false, pcap.BlockForever)
+		sender, err := pcap.OpenLive(conf.NetworkDevice, int32(conf.MTU), false, pcap.BlockForever)
 		if err != nil {
 			fmt.Println("function pcap.OpenLive Error: ", err)
 			os.Exit(1)
@@ -99,7 +99,7 @@ func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset 
 	// 以太网层
 	eth := &layers.Ethernet{
 		BaseLayer:    layers.BaseLayer{},
-		SrcMAC:       conf.DNSServerMAC,
+		SrcMAC:       conf.MAC,
 		DstMAC:       dstMac,
 		EthernetType: layers.EthernetTypeIPv4,
 		Length:       0,
@@ -118,7 +118,7 @@ func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset 
 		TTL:        64,
 		Protocol:   layers.IPProtocolUDP,
 		Checksum:   0,
-		SrcIP:      conf.DNSServerIP,
+		SrcIP:      conf.IP,
 		DstIP:      dstIP,
 		Options:    nil,
 		Padding:    nil,
@@ -161,7 +161,7 @@ func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset 
 func serializeToUDP(rInfo ResponseInfo, conf DNSServerConfig) ([]byte, error) {
 	udp := &layers.UDP{
 		BaseLayer: layers.BaseLayer{},
-		SrcPort:   layers.UDPPort(conf.DNSServerPort),
+		SrcPort:   layers.UDPPort(conf.Port),
 		DstPort:   layers.UDPPort(rInfo.Port),
 	}
 	dns := xlayers.DNS{

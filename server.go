@@ -23,7 +23,7 @@ func (s *GoDNSSever) Start() {
 
 	// 启动 Sniffer
 	for _, sniffer := range s.Sniffer {
-		pktChan := sniffer.Sniff(s.ServerConfig.DNSSeverNetworkDevice, s.ServerConfig.MTU, s.ServerConfig.DNSServerPort)
+		pktChan := sniffer.Sniff(s.ServerConfig.NetworkDevice, s.ServerConfig.MTU, s.ServerConfig.Port)
 		go func() {
 			for pkt := range pktChan {
 				s.Handler.Handle(pkt)
@@ -47,8 +47,8 @@ func GoStart(serverConf DNSServerConfig) *GoDNSSever {
 		ServerConfig: serverConf,
 		Sniffer: []*Sniffer{
 			NewSniffer(SnifferConfig{
-				Device:   serverConf.DNSSeverNetworkDevice,
-				Port:     serverConf.DNSServerPort,
+				Device:   serverConf.NetworkDevice,
+				Port:     serverConf.Port,
 				PktMax:   65535,
 				Protocol: ProtocolUDP,
 			}),
