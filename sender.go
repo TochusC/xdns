@@ -18,8 +18,8 @@ type Sender struct {
 	Config DNSServerConfig
 }
 
-func NewSender(conf DNSServerConfig) *Sender {
-	return &Sender{Handle: func() *pcap.Handle {
+func NewSender(conf DNSServerConfig) Sender {
+	return Sender{Handle: func() *pcap.Handle {
 		sender, err := pcap.OpenLive(conf.DNSSeverNetworkDevice, int32(conf.MTU), false, pcap.BlockForever)
 		if err != nil {
 			fmt.Println("function pcap.OpenLive Error: ", err)
@@ -30,9 +30,9 @@ func NewSender(conf DNSServerConfig) *Sender {
 	}
 }
 
-func (sender Sender) Send(rInfo ResponseInfo, conf DNSServerConfig) error {
+func (sender Sender) Send(rInfo ResponseInfo) error {
 	// 序列化DNS层和UDP层
-	udpPayload, err := serializeToUDP(rInfo, conf)
+	udpPayload, err := serializeToUDP(rInfo, sender.Config)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (sender Sender) Send(rInfo ResponseInfo, conf DNSServerConfig) error {
 	pktChan := make(chan []byte, len(fragments))
 	// 生成数据包
 	for i, fragment := range fragments {
-		go fragmentToBytes(rInfo.MAC, rInfo.IP, 0, i*8, fragment, pktChan, conf)
+		go fragmentToBytes(rInfo.MAC, rInfo.IP, 0, i*8, fragment, pktChan, sender.Config)
 	}
 
 	totalSize := 0
