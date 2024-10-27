@@ -12,31 +12,55 @@ import (
 	"github.com/tochusc/gopacket/pcap"
 )
 
-func Sniff(device string, pktMax int, port int) chan []byte {
-	handleRecv, err := pcap.OpenLive(device, int32(pktMax), false, pcap.BlockForever)
-	if err != nil {
-		fmt.Println("function pcap.OpenLive Error: ", err)
-		os.Exit(1)
-	}
-	defer handleRecv.Close()
+type Protocol string
 
-	// 设置过滤器
-	var filter = fmt.Sprintf("ip and udp dst port %d", port)
-	err = handleRecv.SetBPFFilter(filter)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		os.Exit(1)
-	}
+const (
+	ProtocolUDP Protocol = "udp"
+	ProtocolTCP Protocol = "tcp"
+)
 
-	// 设置Handler为接收方向
-	err = handleRecv.SetDirection(pcap.DirectionIn)
-	if err != nil {
-		fmt.Println("Error: ", err)
-		os.Exit(1)
-	}
+type SnifferConfig struct {
+	Device   string
+	Port     int
+	PktMax   int
+	Protocol Protocol
+}
+type Sniffer struct {
+	Handle *pcap.Handle
+	Config SnifferConfig
+}
 
+func NewSniffer(conf SnifferConfig) *Sniffer {
+	return &Sniffer{Handle: func() *pcap.Handle {
+		// 打开网络设备
+		handle, err := pcap.OpenLive(conf.Device, int32(conf.PktMax), false, pcap.BlockForever)
+		if err != nil {
+			fmt.Println("function pcap.OpenLive Error: ", err)
+			os.Exit(1)
+		}
+
+		// 设置过滤器
+		filiter := fmt.Sprintf("ip and %s dst port %d", conf.Protocol, conf.Port)
+		err = handle.SetBPFFilter(filiter)
+		if err != nil {
+			fmt.Println("function handle.SetBPFFilter Error: ", err)
+			os.Exit(1)
+		}
+
+		// 设置Handler为接收方向
+		err = handle.SetDirection(pcap.DirectionIn)
+		if err != nil {
+			fmt.Println("Error: ", err)
+			os.Exit(1)
+		}
+		return handle
+	}(),
+	}
+}
+
+func (sniffer Sniffer) Sniff(device string, pktMax int, port int) chan []byte {
 	//	设置数据包源
-	packetSource := gopacket.NewPacketSource(handleRecv, handleRecv.LinkType())
+	packetSource := gopacket.NewPacketSource(sniffer.Handle, sniffer.Handle.LinkType())
 
 	// 生成数据包通道
 	pktChan := make(chan []byte)

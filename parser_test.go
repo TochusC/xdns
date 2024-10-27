@@ -21,7 +21,7 @@ var testedPacket = []byte{
 }
 
 func TestParse(t *testing.T) {
-	qInfo, err := Parse(testedPacket)
+	qInfo, err := NewParser().Parse(testedPacket)
 	if err != nil {
 		println(err.Error())
 		return
