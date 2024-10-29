@@ -1,3 +1,7 @@
+// Copyright 2024 TochusC AOSP Lab. All rights reserved.
+
+// parser_test.go 定义了对 Parser 的相关测试函数。
+
 package godns
 
 import "testing"
@@ -65,7 +69,7 @@ var testedPacket2 = []byte{
 }
 
 func TestParse(t *testing.T) {
-	qInfo, err := NewParser().Parse(testedPacket)
+	qInfo, err := Parser{}.Parse(testedPacket)
 	if err != nil {
 		t.Errorf("解析数据包失败: %s", err)
 		return
@@ -74,7 +78,7 @@ func TestParse(t *testing.T) {
 }
 
 func TestParse2(t *testing.T) {
-	qInfo, err := NewParser().Parse(testedPacket2)
+	qInfo, err := Parser{}.Parse(testedPacket2)
 	if err != nil {
 		t.Errorf("解析数据包失败: %s", err)
 		return

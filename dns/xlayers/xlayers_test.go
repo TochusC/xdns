@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
-// layers_test.go 包含了对 gopacket SerializableLayer 接口的测试。
+// xlayers_test.go 包含了对 xlayers.go 中 gopacket接口实现的测试。
+
 package xlayers
 
 import (

@@ -1,6 +1,6 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
-// layers.go 文件实现了gopacket.Layer接口，用于实现DNS层的序列化。
+// xlayers.go 文件实现了gopacket.Layer接口, 提供了DNS层的封装结构。
 package xlayers
 
 import (

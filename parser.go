@@ -1,3 +1,7 @@
+// Copyright 2024 TochusC AOSP Lab. All rights reserved.
+
+// parser.go 文件实现了对 DNS 消息的解析功能。
+
 package godns
 
 import (
@@ -6,11 +10,8 @@ import (
 	"github.com/tochusc/gopacket/layers"
 )
 
+// Parser 结构体用于解析 DNS 消息。
 type Parser struct{}
-
-func NewParser() Parser {
-	return Parser{}
-}
 
 func (parser Parser) Parse(pkt []byte) (QueryInfo, error) {
 	var eth layers.Ethernet

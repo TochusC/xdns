@@ -1,6 +1,9 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// server.go 文件实现了 DNS 服务器的启动。
+// server.go 文件定义了 GoDNS 服务器的最顶层封装。
+// GoDNS 服务器是一个易用、灵活的 DNS 服务器，
+// 它可以监听指定的网络设备和端口，接收 DNS 请求并做出回复。
+// GoStart 函数提供了一个一键启动 GoDNS 服务器的代码示例。
 
 package godns
 
@@ -9,7 +12,11 @@ import (
 	"time"
 )
 
-// GoDNSSever
+// GoDNSSever 表示 GoDNS 服务器
+// 其包含以下三部分：
+//   - ServerConfig: DNS 服务器配置
+//   - Sniffer: 数据包嗅探器
+//   - Handler: 数据包处理器
 type GoDNSSever struct {
 	ServerConfig DNSServerConfig
 	Sniffer      []*Sniffer

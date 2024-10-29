@@ -1,3 +1,7 @@
+// Copyright 2024 TochusC AOSP Lab. All rights reserved.
+
+// handler.go 实现了Handler结构体，用于处理DNS请求和回复。
+
 package godns
 
 import (
@@ -5,6 +9,12 @@ import (
 	"time"
 )
 
+// Handler 结构体用于响应、处理 DNS 请求并回复
+// 其包含以下四部分：
+//   - Parser 解析DNS请求
+//   - Responser 生成DNS回复
+//   - Sender 发送DNS回复
+//   - DNSServerConfig 记录DNS服务器配置
 type Handler struct {
 	Parser    Parser
 	Responser Responser
@@ -12,15 +22,18 @@ type Handler struct {
 	sConf     DNSServerConfig
 }
 
+// NewHandler 创建一个新的Handler对象
 func NewHandler(sConf DNSServerConfig, responser Responser) *Handler {
 	return &Handler{
-		Parser:    NewParser(),
+		Parser:    Parser{},
 		Responser: responser,
 		Sender:    NewSender(sConf),
 		sConf:     sConf,
 	}
 }
 
+// Handle 函数分别调用Parser、Responser和Sender来解析、生成和发送DNS请求及回复
+//   - pkt: []byte，嗅探到的数据包
 func (handler Handler) Handle(pkt []byte) {
 	// Parser 解析数据包
 	qInfo, err := handler.Parser.Parse(pkt)

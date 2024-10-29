@@ -1,3 +1,7 @@
+// Copyright 2024 TochusC AOSP Lab. All rights reserved.
+
+// sender.go 文件定义了 Sender 结构体及其相关方法。
+
 package godns
 
 import (
@@ -13,11 +17,16 @@ import (
 	"github.com/tochusc/gopacket/pcap"
 )
 
+// Sender 结构体用于发送 DNS 消息。
+// 其包含有：
+//   - Handle: *pcap.Handle，用于发送 DNS 消息的 pcap.Handle 实例
+//   - sConf: DNSServerConfig，DNS 服务器的相关配置
 type Sender struct {
 	Handle *pcap.Handle
 	sConf  DNSServerConfig
 }
 
+// NewSender 用于创建一个 Sender 实例。
 func NewSender(sConf DNSServerConfig) Sender {
 	return Sender{
 		Handle: func() *pcap.Handle {
@@ -32,6 +41,7 @@ func NewSender(sConf DNSServerConfig) Sender {
 	}
 }
 
+// Send 函数用于发送 DNS 消息。
 func (sender Sender) Send(rInfo ResponseInfo) (SendInfo, error) {
 	sInfo := SendInfo{
 		MAC:          rInfo.MAC,
@@ -76,6 +86,7 @@ func (sender Sender) Send(rInfo ResponseInfo) (SendInfo, error) {
 	return sInfo, nil
 }
 
+// Fragment 函数用于对数据包进行分片。
 func Fragment(payload []byte, mtu, ipHeaderLen int) ([][]byte, error) {
 	if mtu <= 0 {
 		return nil, fmt.Errorf("function Fragment failed: MTU must be greater than 0")
@@ -101,6 +112,7 @@ func Fragment(payload []byte, mtu, ipHeaderLen int) ([][]byte, error) {
 	return fragments, nil
 }
 
+// fragmentToBytes 函数用于将分片数据包序列化为字节流。
 func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset int, payload []byte, pktBytes chan []byte, sConf DNSServerConfig) error {
 	// 生成随机IP标识符
 	ipID := uint16(rand.Intn(65536))
@@ -167,6 +179,7 @@ func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset 
 	return nil
 }
 
+// serializeToUDP 函数用于序列化 DNS 消息到 UDP 层。
 func serializeToUDP(rInfo ResponseInfo, sConf DNSServerConfig) ([]byte, error) {
 	udp := &layers.UDP{
 		BaseLayer: layers.BaseLayer{},

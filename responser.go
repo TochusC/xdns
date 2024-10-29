@@ -1,8 +1,20 @@
+// Copyright 2024 TochusC AOSP Lab. All rights reserved.
+
+// responser.go 文件定义了 Responser 接口和 DullResponser 结构体。
+
 package godns
 
 import "github.com/tochusc/godns/dns"
 
+// Responser 是一个 DNS 回复器接口。
+// 实现该接口的结构体可以根据 DNS 查询信息生成 DNS 回复信息。
 type Responser interface {
+	// Response 根据 DNS 查询信息生成 DNS 回复信息。
+	// 其参数为：
+	//   - qInfo QueryInfo，DNS 查询信息
+	// 返回值为：
+	//   - ResponseInfo，DNS 回复信息
+	//   - error，错误信息
 	Response(qInfo QueryInfo) (ResponseInfo, error)
 }
 
@@ -12,6 +24,8 @@ type DullResponser struct {
 	ServerConf DNSServerConfig
 }
 
+// Response 根据 DNS 查询信息生成 DNS 回复信息。
+// DullResponser 会回复所查询名称的 A 记录，地址指向服务器的 IP 地址。
 func (d DullResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	return ResponseInfo{
 		MAC:  qInfo.MAC,

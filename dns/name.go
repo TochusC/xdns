@@ -1,6 +1,8 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // name.go 文件定义了 DNS 域名的编解码函数。
+// 可接受绝对域名及相对域名，生成的域名均为相对域名。
+// 当域名为根域名时，返回"."。
 //
 // [ RFC 1035 ] 规定了 DNS 域名的相关定义。
 // DNS 域名由一系列标签组成，标签之间以'.'分隔。

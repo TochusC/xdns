@@ -1,6 +1,6 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// dns_test.go 文件定义了对 dns.go 文件的测试函数。
+// dns_test.go 文件用于对 dns.go 文件所实现的 DNS 消息编解码进行的测试。
 
 package dns
 

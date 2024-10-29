@@ -1,6 +1,8 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
 // dns.go 文件定义了 DNS 协议的主要消息结构。
+// DNS消息结构定义在 RFC 1034 / RFC 1035 中。
+// 最顶层的结构是 DNSMessage，包含了 DNSHeader, DNSQuestionSection, ResponseSection 等部分。
 
 package dns
 
