@@ -679,6 +679,17 @@ func (responseSection DNSResponseSection) DecodeFromBuffer(buffer []byte, offset
 	return offset, nil
 }
 
+func NewDNSResourceRecord(name string, dnsType DNSType, dnsClass DNSClass, ttl uint32, rData DNSRRRDATA) DNSResourceRecord {
+	return DNSResourceRecord{
+		Name:  name,
+		Type:  dnsType,
+		Class: dnsClass,
+		TTL:   ttl,
+		RDLen: uint16(rData.Size()),
+		RData: rData,
+	}
+}
+
 // Size 返回 DNS 资源记录的*准确*大小。
 //   - RDLength 字段可由用户自行设置一个错误的值。
 func (rr *DNSResourceRecord) Size() int {
@@ -770,5 +781,5 @@ func (rr *DNSResourceRecord) DecodeFromBuffer(buffer []byte, offset int) (int, e
 	if err != nil {
 		return -1, err
 	}
-	return offset + 10 + int(rr.RDLen), nil
+	return offset, nil
 }

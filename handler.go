@@ -1,6 +1,8 @@
 package godns
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Handler struct {
 	Parser    Parser
@@ -18,7 +20,11 @@ func NewHandler(conf DNSServerConfig, responser Responser) *Handler {
 
 func (handler Handler) Handle(pkt []byte) {
 	// Parser 解析数据包
-	qInfo, _ := handler.Parser.Parse(pkt)
+	qInfo, err := handler.Parser.Parse(pkt)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
 
 	// 输出QueryInfo
 	fmt.Println(qInfo.String())
@@ -36,6 +42,4 @@ func (handler Handler) Handle(pkt []byte) {
 		fmt.Println(err.Error())
 		return
 	}
-
-	return
 }

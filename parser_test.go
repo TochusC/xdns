@@ -23,9 +23,8 @@ var testedPacket = []byte{
 func TestParse(t *testing.T) {
 	qInfo, err := NewParser().Parse(testedPacket)
 	if err != nil {
-		println(err.Error())
+		t.Errorf("解析数据包失败: %s", err)
 		return
 	}
-
 	t.Logf("%s", qInfo.String())
 }

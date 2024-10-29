@@ -30,18 +30,18 @@ func (s *GoDNSSever) Start() {
 			}
 		}()
 	}
+
+	for {
+		time.Sleep(1 * time.Second)
+	}
 }
 
-// GoStart一键式创建一个基础 GoDNS 并启动它。
+// GoStart为示例函数，其将会一键式创建一个基础 GoDNS 并启动它。
 // 这个 GoDNS 将有一个DullResponser，将不会对DNS请求做出任何回复...
-// 但您应该可以随意微调它，以满足您的各种需求。
 // 参数：
 //   - DNSServerConfig: DNS 服务器配置
 //   - Responser: DNS 回复生成器
-//
-// 返回值：
-//   - GoDNSSever: 创建的 GoDNS 服务器实例
-func GoStart(serverConf DNSServerConfig) *GoDNSSever {
+func GoStart(serverConf DNSServerConfig) {
 	// 创建一个 DNS 服务器
 	server := &GoDNSSever{
 		ServerConfig: serverConf,
@@ -58,5 +58,4 @@ func GoStart(serverConf DNSServerConfig) *GoDNSSever {
 
 	// 启动 DNS 服务器
 	server.Start()
-	return server
 }
