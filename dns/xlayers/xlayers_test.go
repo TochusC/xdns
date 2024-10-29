@@ -51,13 +51,14 @@ func TestSerializeTo(t *testing.T) {
 				},
 			},
 			Answer: dns.DNSResponseSection{
-				dns.NewDNSResourceRecord(
-					"www.example.com",
-					dns.DNSRRTypeA,
-					dns.DNSClassIN,
-					3600,
-					&dns.DNSRDATAA{Address: net.IPv4(192, 0, 2, 1)},
-				),
+				dns.DNSResourceRecord{
+					Name:  "www.example.com",
+					Type:  dns.DNSRRTypeA,
+					Class: dns.DNSClassIN,
+					TTL:   3600,
+					RDLen: 0,
+					RData: &dns.DNSRDATAA{Address: net.IPv4(192, 0, 2, 1)},
+				},
 			},
 			Authority:  dns.DNSResponseSection{},
 			Additional: dns.DNSResponseSection{},

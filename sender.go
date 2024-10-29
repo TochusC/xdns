@@ -15,56 +15,65 @@ import (
 
 type Sender struct {
 	Handle *pcap.Handle
-	Config DNSServerConfig
+	sConf  DNSServerConfig
 }
 
-func NewSender(conf DNSServerConfig) Sender {
-	return Sender{Handle: func() *pcap.Handle {
-		sender, err := pcap.OpenLive(conf.NetworkDevice, int32(conf.MTU), false, pcap.BlockForever)
-		if err != nil {
-			fmt.Println("function pcap.OpenLive Error: ", err)
-			os.Exit(1)
-		}
-		return sender
-	}(),
+func NewSender(sConf DNSServerConfig) Sender {
+	return Sender{
+		Handle: func() *pcap.Handle {
+			handle, err := pcap.OpenLive(sConf.NetworkDevice, int32(sConf.MTU), false, pcap.BlockForever)
+			if err != nil {
+				fmt.Println("function pcap.OpenLive Error: ", err)
+				os.Exit(1)
+			}
+			return handle
+		}(),
+		sConf: sConf,
 	}
 }
 
-func (sender Sender) Send(rInfo ResponseInfo) error {
-	// 序列化DNS层和UDP层
-	udpPayload, err := serializeToUDP(rInfo, sender.Config)
+func (sender Sender) Send(rInfo ResponseInfo) (SendInfo, error) {
+	sInfo := SendInfo{
+		MAC:          rInfo.MAC,
+		IP:           rInfo.IP,
+		Port:         rInfo.Port,
+		FragmentsNum: 0,
+		TotalSize:    0,
+		Data:         nil,
+	}
+
+	// 序列化DNS及UDP层
+	udpPayload, err := serializeToUDP(rInfo, sender.sConf)
 	if err != nil {
-		return err
+		return sInfo, fmt.Errorf("function serializeToUDP failed: %s", err)
 	}
 
 	// 分片
 	fragments, err := Fragment(udpPayload, 1500, 20)
 	if err != nil {
-		return err
+		return sInfo, fmt.Errorf("function Fragment failed: %s", err)
 	}
 
 	// 生成数据包通道
 	pktChan := make(chan []byte, len(fragments))
 	// 生成数据包
 	for i, fragment := range fragments {
-		go fragmentToBytes(rInfo.MAC, rInfo.IP, 0, i*8, fragment, pktChan, sender.Config)
+		go fragmentToBytes(rInfo.MAC, rInfo.IP, 0, i*8, fragment, pktChan, sender.sConf)
 	}
 
-	totalSize := 0
-	sentNum := 0
 	pktNum := len(fragments)
 	for pkt := range pktChan {
-		totalSize += len(pkt)
 		err = sender.Handle.WritePacketData(pkt)
 		if err != nil {
-			return err
+			return sInfo, fmt.Errorf("function pcap.Handle.WritePacketData failed: %s", err)
 		}
-		if sentNum++; sentNum == pktNum {
+		sInfo.FragmentsNum++
+		sInfo.TotalSize += len(pkt)
+		if sInfo.FragmentsNum == pktNum {
 			break
 		}
 	}
-	println("DNS response send, total fragments: %d, total size: %d", pktNum, totalSize)
-	return nil
+	return sInfo, nil
 }
 
 func Fragment(payload []byte, mtu, ipHeaderLen int) ([][]byte, error) {
@@ -92,14 +101,14 @@ func Fragment(payload []byte, mtu, ipHeaderLen int) ([][]byte, error) {
 	return fragments, nil
 }
 
-func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset int, payload []byte, pktBytes chan []byte, conf DNSServerConfig) error {
+func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset int, payload []byte, pktBytes chan []byte, sConf DNSServerConfig) error {
 	// 生成随机IP标识符
 	ipID := uint16(rand.Intn(65536))
 
 	// 以太网层
 	eth := &layers.Ethernet{
 		BaseLayer:    layers.BaseLayer{},
-		SrcMAC:       conf.MAC,
+		SrcMAC:       sConf.MAC,
 		DstMAC:       dstMac,
 		EthernetType: layers.EthernetTypeIPv4,
 		Length:       0,
@@ -118,7 +127,7 @@ func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset 
 		TTL:        64,
 		Protocol:   layers.IPProtocolUDP,
 		Checksum:   0,
-		SrcIP:      conf.IP,
+		SrcIP:      sConf.IP,
 		DstIP:      dstIP,
 		Options:    nil,
 		Padding:    nil,
@@ -158,10 +167,10 @@ func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset 
 	return nil
 }
 
-func serializeToUDP(rInfo ResponseInfo, conf DNSServerConfig) ([]byte, error) {
+func serializeToUDP(rInfo ResponseInfo, sConf DNSServerConfig) ([]byte, error) {
 	udp := &layers.UDP{
 		BaseLayer: layers.BaseLayer{},
-		SrcPort:   layers.UDPPort(conf.Port),
+		SrcPort:   layers.UDPPort(sConf.Port),
 		DstPort:   layers.UDPPort(rInfo.Port),
 	}
 	dns := xlayers.DNS{
@@ -179,9 +188,14 @@ func serializeToUDP(rInfo ResponseInfo, conf DNSServerConfig) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	dnsPayload := dnsBuffer.Bytes()
+
 	// UDP层序列化
+	udp.SetNetworkLayerForChecksum(&layers.IPv4{
+		SrcIP:    sConf.IP,
+		DstIP:    rInfo.IP,
+		Protocol: layers.IPProtocolUDP,
+	})
 	udpBuffer := gopacket.NewSerializeBuffer()
 	err = gopacket.SerializeLayers(
 		udpBuffer,

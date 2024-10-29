@@ -31,9 +31,10 @@ type QueryInfo struct {
 }
 
 func (q *QueryInfo) String() string {
-	return fmt.Sprintf("Received DNS query from IP: %s, Port: %d, DNS Message:\n%s", q.IP, q.Port, q.DNS.String())
+	return fmt.Sprintf("Receive query from IP: %s, Port: %d, DNS Message:\n%s", q.IP, q.Port, q.DNS.String())
 }
 
+// ResponseInfo 记录 DNS 回复相关信息
 type ResponseInfo struct {
 	MAC  net.HardwareAddr
 	IP   net.IP
@@ -42,5 +43,19 @@ type ResponseInfo struct {
 }
 
 func (s *ResponseInfo) String() string {
-	return fmt.Sprintf("Send DNS response to IP: %s, Port: %d, DNS Message:\n%s", s.IP, s.Port, s.DNS.String())
+	return fmt.Sprintf("Response to IP: %s, Port: %d, DNS Message:\n%s", s.IP, s.Port, s.DNS.String())
+}
+
+// SendInfo 记录 发送 DNS 回复相关信息
+type SendInfo struct {
+	MAC          net.HardwareAddr
+	IP           net.IP
+	Port         int
+	FragmentsNum int
+	TotalSize    int
+	Data         []byte
+}
+
+func (s *SendInfo) String() string {
+	return fmt.Sprintf("Send response to IP: %s, Port: %d, FragmentsNum: %d, TotalSize: %d", s.IP, s.Port, s.FragmentsNum, s.TotalSize)
 }

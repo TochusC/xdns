@@ -92,7 +92,7 @@ func (rdata *DNSRDATAUnknown) Size() int {
 func (rdata *DNSRDATAUnknown) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
-		"Unknown RDATA: ", rdata.RData, "\n",
+		"Unknown RDATA: ", rdata.RData,
 	)
 }
 
@@ -140,8 +140,7 @@ func (rdata *DNSRDATAA) Size() int {
 func (rdata *DNSRDATAA) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
-		"Address: ", rdata.Address.String(), "\n",
-		"### End of RDATA Section ###",
+		"Address: ", rdata.Address.String(),
 	)
 }
 
@@ -199,8 +198,7 @@ func (rdata *DNSNSRDATA) Size() int {
 func (rdata *DNSNSRDATA) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
-		"NS: ", rdata.NS, "\n",
-		"### End of RDATA Section ###",
+		"NS: ", rdata.NS,
 	)
 }
 
@@ -208,7 +206,7 @@ func (rdata *DNSNSRDATA) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	_, err := EncodeDomainNameToBuffer(&rdata.NS, bytesArray)
 	if err != nil {
-		fmt.Println("EncodeDomainNameToBuffer failed: ", err)
+		fmt.Println("function EncodeDomainNameToBuffer failed: ", err)
 		os.Exit(1)
 	}
 	return bytesArray
@@ -255,8 +253,7 @@ func (rdata *DNSRDATACNAME) Size() int {
 func (rdata *DNSRDATACNAME) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
-		"CNAME: ", rdata.CNAME, "\n",
-		"### End of RDATA Section ###",
+		"CNAME: ", rdata.CNAME,
 	)
 }
 

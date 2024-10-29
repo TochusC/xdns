@@ -118,6 +118,7 @@ type DNSQuestion struct {
 type DNSResponseSection []DNSResourceRecord
 
 // DNSResourceRecord 表示 DNS 资源记录。
+// 设置RDLen为0时，将根据RData的实际大小进行编码。
 type DNSResourceRecord struct {
 	Name  string
 	Type  DNSType
@@ -156,6 +157,7 @@ func (dnsMessage *DNSMessage) String() string {
 		dnsMessage.Answer.String(),
 		dnsMessage.Authority.String(),
 		dnsMessage.Additional.String(),
+		"### DNS Message End ###",
 	)
 }
 
@@ -679,17 +681,6 @@ func (responseSection DNSResponseSection) DecodeFromBuffer(buffer []byte, offset
 	return offset, nil
 }
 
-func NewDNSResourceRecord(name string, dnsType DNSType, dnsClass DNSClass, ttl uint32, rData DNSRRRDATA) DNSResourceRecord {
-	return DNSResourceRecord{
-		Name:  name,
-		Type:  dnsType,
-		Class: dnsClass,
-		TTL:   ttl,
-		RDLen: uint16(rData.Size()),
-		RData: rData,
-	}
-}
-
 // Size 返回 DNS 资源记录的*准确*大小。
 //   - RDLength 字段可由用户自行设置一个错误的值。
 func (rr *DNSResourceRecord) Size() int {
@@ -722,8 +713,12 @@ func (rr *DNSResourceRecord) Encode() []byte {
 	binary.BigEndian.PutUint16(byteArray[offset:], uint16(rr.Type))
 	binary.BigEndian.PutUint16(byteArray[offset+2:], uint16(rr.Class))
 	binary.BigEndian.PutUint32(byteArray[offset+4:], rr.TTL)
-	binary.BigEndian.PutUint16(byteArray[offset+8:], rr.RDLen)
-	_, err = rr.RData.EncodeToBuffer(byteArray[offset+10:])
+	rdLen, err := rr.RData.EncodeToBuffer(byteArray[offset+10:])
+	if rr.RDLen == 0 {
+		binary.BigEndian.PutUint16(byteArray[offset+8:], uint16(rdLen))
+	} else {
+		binary.BigEndian.PutUint16(byteArray[offset+8:], rr.RDLen)
+	}
 	if err != nil {
 		fmt.Println("DNSResourceRecord Encode Error:\n", err)
 		os.Exit(1)
@@ -737,21 +732,25 @@ func (rr *DNSResourceRecord) Encode() []byte {
 //
 // 如果出现错误，返回 -1 和 相应报错。
 func (rr *DNSResourceRecord) EncodeToBuffer(buffer []byte) (int, error) {
-	_, err := EncodeDomainNameToBuffer(&rr.Name, buffer)
+	offset, err := EncodeDomainNameToBuffer(&rr.Name, buffer)
 	if err != nil {
 		return -1, err
 	}
-	binary.BigEndian.PutUint16(buffer, uint16(rr.Type))
-	binary.BigEndian.PutUint16(buffer[2:], uint16(rr.Class))
-	binary.BigEndian.PutUint32(buffer[4:], rr.TTL)
-	binary.BigEndian.PutUint16(buffer[8:], rr.RDLen)
+	binary.BigEndian.PutUint16(buffer[offset:], uint16(rr.Type))
+	binary.BigEndian.PutUint16(buffer[offset+2:], uint16(rr.Class))
+	binary.BigEndian.PutUint32(buffer[offset+4:], rr.TTL)
+	rdLen, err := rr.RData.EncodeToBuffer(buffer[offset+10:])
+	if rr.RDLen == 0 {
+		binary.BigEndian.PutUint16(buffer[offset+8:], uint16(rdLen))
+	} else {
+		binary.BigEndian.PutUint16(buffer[offset+8:], rr.RDLen)
+	}
 
-	rdLen, err := rr.RData.EncodeToBuffer(buffer[10:])
 	if err != nil {
 		err = errors.New("DNSResourceRecord EncodeToBuffer Error:\n" + err.Error())
 		return -1, err
 	}
-	return 10 + rdLen, err
+	return offset + 10 + rdLen, err
 }
 
 // DecodeFromBuffer 从存储有 DNS消息 的缓冲区中解码DNS消息的 资源记录部分 。
