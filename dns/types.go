@@ -221,6 +221,8 @@ const (
 	DNSRRTypeAMTRELAY   DNSType = 260   // 自动多播隧道中继 [RFC8777]
 	DNSRRTypeTA         DNSType = 32768 // DNS信任机构 [Weiler]（私有使用）
 	DNSRRTypeDLV        DNSType = 32769 // DNSSEC旁路验证 [RFC4431]
+
+	DNSRRTypeUnknown DNSType = 0 // 未知类型
 )
 
 // String 方法返回 DNS 资源记录类型的字符串表示。

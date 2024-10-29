@@ -775,7 +775,7 @@ func (rr *DNSResourceRecord) DecodeFromBuffer(buffer []byte, offset int) (int, e
 	// 解码RDLen
 	rr.RDLen = binary.BigEndian.Uint16(buffer[offset+8:])
 	// 根据类型初始化 RData
-	rr.RData = InitDNSRRRDATA(rr.Type)
+	rr.RData = NewDNSRRRDATA(rr.Type)
 	// 解码RData
 	offset, err = rr.RData.DecodeFromBuffer(buffer, offset+10)
 	if err != nil {

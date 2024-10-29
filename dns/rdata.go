@@ -60,15 +60,60 @@ type DNSRRRDATA interface {
 	DecodeFromBuffer(buffer []byte, offset int) (int, error)
 }
 
-// InitDNSRRRDATA 函数根据 DNS 资源记录的类型返回对应的 RDATA 结构体。
-func InitDNSRRRDATA(rtype DNSType) DNSRRRDATA {
+// NewDNSRRRDATA 函数根据 DNS 资源记录的类型返回对应的 RDATA 结构体。
+func NewDNSRRRDATA(rtype DNSType) DNSRRRDATA {
 	switch rtype {
 	case DNSRRTypeA:
 		return &DNSRDATAA{}
 	case DNSRRTypeCNAME:
 		return &DNSRDATACNAME{}
 	}
-	return nil
+	return &DNSRDATAUnknown{
+		RRType: rtype,
+		RData:  nil,
+	}
+}
+
+// DNSRDATAUnknown 结构体表示未知类型的 DNS 资源记录的 RDATA 部分。
+// - 其包含一个 DNS 资源记录的类型和 RDATA 部分的字节切片。
+type DNSRDATAUnknown struct {
+	RRType DNSType
+	RData  []byte
+}
+
+func (rdata *DNSRDATAUnknown) Type() DNSType {
+	return rdata.RRType
+}
+
+func (rdata *DNSRDATAUnknown) Size() int {
+	return len(rdata.RData)
+}
+
+func (rdata *DNSRDATAUnknown) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Unknown RDATA: ", rdata.RData, "\n",
+	)
+}
+
+func (rdata *DNSRDATAUnknown) Encode() []byte {
+	return rdata.RData
+}
+
+func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than Unknown RDATA size %d", len(buffer), rdata.Size())
+	}
+	copy(buffer, rdata.RData)
+	return rdata.Size(), nil
+}
+
+func (rdata *DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
+	if len(buffer) < offset+rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than offset %d + Unknown RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	rdata.RData = buffer[offset:]
+	return offset + rdata.Size(), nil
 }
 
 // A RDATA 编码格式

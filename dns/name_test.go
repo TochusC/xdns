@@ -86,15 +86,3 @@ func TestEncodeDomainNameToBuffer(t *testing.T) {
 		t.Errorf("function EncodeDomainNameToBuffer() failed:\ngot: nil\nexpected: error")
 	}
 }
-
-// 测试DecodeDomainNameFromBuffer函数
-func TestDecodeDomainNameFromBuffer(t *testing.T) {
-	buffer := make([]byte, len(testedDomainName))
-	_, err := DecodeDomainNameToBuffer(expectedEncodedName, buffer)
-	if err != nil {
-		t.Errorf("function DecodeDomainNameFromBuffer() failed:\ngot: \n%s\n\nexpected: nil", err)
-	}
-	if string(buffer) != testedDomainName {
-		t.Errorf("function DecodeDomainNameFromBuffer() failed:\ngot: %v\nexpected: %v", buffer, []byte(testedDomainName))
-	}
-}

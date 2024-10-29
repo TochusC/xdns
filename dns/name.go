@@ -37,6 +37,10 @@ import (
 func GetNameWireLength(name *string) int {
 	nameLength := len(*name)
 	if (*name)[nameLength-1] == '.' {
+		// 根域名
+		if nameLength == 1 {
+			return 1
+		}
 		return nameLength + 1
 	}
 	return nameLength + 2
@@ -47,6 +51,12 @@ func GetNameWireLength(name *string) int {
 func EncodeDomainName(name *string) []byte {
 	encodedLength := GetNameWireLength(name)
 	byteArray := make([]byte, encodedLength)
+
+	// 根域名，返回0x00
+	if encodedLength == 1 {
+		byteArray[0] = 0x00
+		return byteArray
+	}
 
 	labelLength := 0
 	for index := range *name {
@@ -78,6 +88,11 @@ func EncodeDomainNameToBuffer(name *string, buffer []byte) (int, error) {
 			encodedLength, len(buffer))
 	}
 
+	if encodedLength == 1 {
+		buffer[0] = 0x00
+		return 1, nil
+	}
+
 	labelLength := 0
 	for index := range *name {
 		if (*name)[index] == '.' {
@@ -101,6 +116,7 @@ const (
 
 // DecodeDomainName 解码域名，其接受字节切片，并返回解码后域名。
 // 返回的域名为*相对域名*，即不以'.'结尾。
+// 若域名为根域名，则返回"."
 func DecodeDomainName(data []byte) string {
 	var name string
 	nameLength := 0
@@ -111,9 +127,10 @@ func DecodeDomainName(data []byte) string {
 	}
 	// 去掉最后的'.'
 	if nameLength != 0 {
-		name = name[:len(name)-1]
+		return name[:len(name)-1]
+	} else {
+		return "."
 	}
-	return name
 }
 
 // DecodeDomainNameFromDNSBuffer 从 DNS 报文中解码域名。
@@ -149,7 +166,7 @@ func DecodeDomainNameFromBuffer(data []byte, offset int) (string, int, error) {
 
 		if dataLength < offset+nameLength+labelLength+1 {
 			return "", -1, fmt.Errorf(
-				"DecodeDomainNameFromBuffer Error:\nbuffer is too small, require %d byte size, but got %d",
+				"function DecodeDomainNameFromBuffer failed:\nbuffer is too small, require %d byte size, but got %d",
 				offset+nameLength+1+labelLength, dataLength)
 		}
 
@@ -160,32 +177,8 @@ func DecodeDomainNameFromBuffer(data []byte, offset int) (string, int, error) {
 	// 去掉最后的'.'
 	if nameLength != 0 {
 		name = name[:len(name)-1]
+	} else {
+		return ".", offset + 1, nil
 	}
 	return string(name), offset + nameLength + 1, nil
-}
-
-// DecodeDomainNameToBuffer 将解码后的域名写入字节切片中。
-// - 其接收参数为 域名的WireFormat 和 字节切片，
-// - 返回值为 写入的字节数 及 报错信息。
-// 如果出现错误，返回 -1 及 相应报错 。
-func DecodeDomainNameToBuffer(data, buffer []byte) (int, error) {
-	nameLength := 0
-	for ; data[nameLength] != 0x00; nameLength++ {
-		labelLength := int(data[nameLength])
-
-		if len(buffer) < nameLength+labelLength {
-			return -1, fmt.Errorf(
-				"DecodeDomainNameFromBuffer Error: buffer is too small, require %d byte size, but got %d",
-				nameLength+1+labelLength, len(buffer))
-		}
-
-		copy(buffer[nameLength:], data[nameLength+1:nameLength+1+labelLength])
-		nameLength += labelLength
-
-		// 如果不是最后一个标签，则加上'.'
-		if data[nameLength+1] != 0x00 {
-			buffer[nameLength] = '.'
-		}
-	}
-	return nameLength, nil
 }
