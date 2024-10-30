@@ -34,7 +34,7 @@ func (d DullResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 		DNS: &dns.DNSMessage{
 			Header: dns.DNSHeader{
 				ID:      qInfo.DNS.Header.ID,
-				QR:      false,
+				QR:      true,
 				OpCode:  dns.DNSOpCodeQuery,
 				AA:      true,
 				TC:      false,

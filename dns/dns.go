@@ -55,8 +55,9 @@ type DNSMessage struct {
 
 // DNSHeader 表示DNS数据包的头部部分。
 type DNSHeader struct {
-	ID     uint16    // 查询ID
-	QR     bool      // 查询/响应标志
+	ID uint16 // 查询ID
+	// QR 查询/响应标志
+	QR     bool      // 0: 查询 1: 响应
 	OpCode DNSOpCode // 查询操作码
 
 	AA bool  // 权威回答标志（Authoritative Answer）
