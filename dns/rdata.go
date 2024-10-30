@@ -5,6 +5,7 @@
 package dns
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -331,9 +332,349 @@ func (rdata *DNSRDATATXT) EncodeToBuffer(buffer []byte) (int, error) {
 }
 
 func (rdata *DNSRDATATXT) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
-	if len(buffer) < offset+rdata.Size() {
-		return -1, fmt.Errorf("method *DNSRDATATXT DecodeFromBuffer failed: buffer length %d is less than offset %d + TXT RDATA size %d", len(buffer), offset, rdata.Size())
+	if len(buffer) < offset+rdLen {
+		return -1, fmt.Errorf("method DNSRDATATXT DecodeFromBuffer failed: buffer length %d is less than offset %d + TXT RDATA size %d", len(buffer), offset, rdata.Size())
 	}
 	rdata.TXT = DecodeCharacterStr(buffer[offset : offset+rdLen])
+	return offset + rdata.Size(), nil
+}
+
+// RRSIG RDATA 编码格式
+// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |          Type Covered        |   Algorithm   |     Labels     |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |                          Original TTL                         |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |                      Signature Expiration                     |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |                      Signature Inception                      |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |            Key Tag           |                                /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+          Signer’s Name        /
+// /                                                               /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// /                                         						/
+// /                            Signature                          /
+// / 																/
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+// DNSRRSIGRDATA 结构体表示 RRSIG 类型的 DNS 资源记录的 RDATA 部分。
+type DNSRDATARRSIG struct {
+	TypeCovered                        DNSType
+	Algorithm                          DNSSECAlgorithm
+	Labels                             uint8
+	OriginalTTL, Expiration, Inception uint32
+	KeyTag                             DNSKEYFlag
+	SignerName                         string
+	Signature                          []byte
+}
+
+func (rdata *DNSRDATARRSIG) Type() DNSType {
+	return DNSRRTypeRRSIG
+}
+
+func (rdata *DNSRDATARRSIG) Size() int {
+	return 18 + GetDomainNameWireLen(&rdata.SignerName) + len(rdata.Signature)
+}
+
+func (rdata *DNSRDATARRSIG) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Type Covered: ", rdata.TypeCovered,
+		"\nAlgorithm: ", rdata.Algorithm,
+		"\nLabels: ", rdata.Labels,
+		"\nOriginal TTL: ", rdata.OriginalTTL,
+		"\nExpiration: ", rdata.Expiration,
+		"\nInception: ", rdata.Inception,
+		"\nKey Tag: ", rdata.KeyTag,
+		"\nSigner Name: ", rdata.SignerName,
+		"\nSignature: ", rdata.Signature,
+	)
+}
+
+func (rdata *DNSRDATARRSIG) Encode() []byte {
+	bytesArray := make([]byte, rdata.Size())
+	binary.BigEndian.PutUint16(bytesArray, uint16(rdata.TypeCovered))
+	bytesArray[2] = byte(rdata.Algorithm)
+	bytesArray[3] = rdata.Labels
+	binary.BigEndian.PutUint32(bytesArray[4:], rdata.OriginalTTL)
+	binary.BigEndian.PutUint32(bytesArray[8:], rdata.Expiration)
+	binary.BigEndian.PutUint32(bytesArray[12:], rdata.Inception)
+	binary.BigEndian.PutUint16(bytesArray[16:], uint16(rdata.KeyTag))
+	offset, _ := EncodeDomainNameToBuffer(&rdata.SignerName, bytesArray[18:])
+	copy(bytesArray[offset:], rdata.Signature)
+	return bytesArray
+}
+
+func (rdata *DNSRDATARRSIG) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than RRSIG RDATA size %d", len(buffer), rdata.Size())
+	}
+	binary.BigEndian.PutUint16(buffer, uint16(rdata.TypeCovered))
+	buffer[2] = byte(rdata.Algorithm)
+	buffer[3] = rdata.Labels
+	binary.BigEndian.PutUint32(buffer[4:], rdata.OriginalTTL)
+	binary.BigEndian.PutUint32(buffer[8:], rdata.Expiration)
+	binary.BigEndian.PutUint32(buffer[12:], rdata.Inception)
+	binary.BigEndian.PutUint16(buffer[16:], uint16(rdata.KeyTag))
+	offset, err := EncodeDomainNameToBuffer(&rdata.SignerName, buffer[18:])
+	if err != nil {
+		return -1, err
+	}
+	copy(buffer[offset:], rdata.Signature)
+	return rdata.Size(), nil
+}
+
+func (rdata *DNSRDATARRSIG) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	if rdLen < 18 {
+		return -1, fmt.Errorf("method DNSRDATARRSIG DecodeFromBuffer failed: RRSIG RDATA size %d is less than 18", rdLen)
+	}
+	if len(buffer) < offset+18 {
+		return -1, fmt.Errorf("method DNSRDATARRSIG DecodeFromBuffer failed: buffer length %d is less than offset %d + RRSIG RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	var err error
+	rdEnd := offset + rdLen
+	rdata.TypeCovered = DNSType(binary.BigEndian.Uint16(buffer[offset:]))
+	rdata.Algorithm = DNSSECAlgorithm(buffer[offset+2])
+	rdata.Labels = buffer[offset+3]
+	rdata.OriginalTTL = binary.BigEndian.Uint32(buffer[offset+4:])
+	rdata.Expiration = binary.BigEndian.Uint32(buffer[offset+8:])
+	rdata.Inception = binary.BigEndian.Uint32(buffer[offset+12:])
+	rdata.KeyTag = DNSKEYFlag(binary.BigEndian.Uint16(buffer[offset+16:]))
+	rdata.SignerName, offset, err = DecodeDomainNameFromBuffer(buffer, offset+18)
+	if err != nil {
+		return -1, fmt.Errorf("decode RRSIG Signer Name failed: \n%v", err)
+	}
+	copy(rdata.Signature, buffer[offset:rdEnd])
+	return offset + rdata.Size(), nil
+}
+
+// DNSKEY RDATA 编码格式
+// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |             Flags            |    Protocol   |    Algorithm   |                      |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// /                                                               /
+// /                           Public Key                          /
+// /                                                               /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+// DNSRRSIGRDATA 结构体表示 DNSKEY 类型的 DNS 资源记录的 RDATA 部分。
+// 其包含以下字段：
+//   - Flags: 16位无符号整数，表示密钥类型。
+//   - Protocol: 8位无符号整数，表示密钥协议。
+//   - Algorithm: 8位无符号整数，表示密钥算法。
+//   - PublicKey: 字节切片，表示密钥的原始字节形式（注意：不是Base64编码后的形式）。
+//
+// RFC 4034 2.1 节 定义了 DNSKEY 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// 其 Type 值为 48。
+type DNSRDATADNSKEY struct {
+	Flags     DNSKEYFlag
+	Protocol  uint8
+	Algorithm DNSSECAlgorithm
+	PublicKey []byte
+}
+
+func (rdata *DNSRDATADNSKEY) Type() DNSType {
+	return DNSRRTypeDNSKEY
+}
+
+func (rdata *DNSRDATADNSKEY) Size() int {
+	return 4 + len(rdata.PublicKey)
+}
+
+func (rdata *DNSRDATADNSKEY) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Flags: ", rdata.Flags,
+		"\nProtocol: ", rdata.Protocol,
+		"\nAlgorithm: ", rdata.Algorithm,
+		"\nPublic Key: ", rdata.PublicKey,
+	)
+}
+
+func (rdata *DNSRDATADNSKEY) Encode() []byte {
+	bytesArray := make([]byte, rdata.Size())
+	binary.BigEndian.PutUint16(bytesArray, uint16(rdata.Flags))
+	bytesArray[2] = rdata.Protocol
+	bytesArray[3] = byte(rdata.Algorithm)
+	copy(bytesArray[4:], rdata.PublicKey)
+	return bytesArray
+}
+
+func (rdata *DNSRDATADNSKEY) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than DNSKEY RDATA size %d", len(buffer), rdata.Size())
+	}
+	binary.BigEndian.PutUint16(buffer, uint16(rdata.Flags))
+	buffer[2] = rdata.Protocol
+	buffer[3] = byte(rdata.Algorithm)
+	copy(buffer[4:], rdata.PublicKey)
+	return rdata.Size(), nil
+}
+
+func (rdata *DNSRDATADNSKEY) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	if rdLen < 4 {
+		return -1, fmt.Errorf("method DNSRDATADNSKEY DecodeFromBuffer failed: DNSKEY RDATA size %d is less than 4", rdLen)
+	}
+	if len(buffer) < offset+4 {
+		return -1, fmt.Errorf("method DNSRDATADNSKEY DecodeFromBuffer failed: buffer length %d is less than offset %d + DNSKEY RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	rdata.Flags = DNSKEYFlag(binary.BigEndian.Uint16(buffer[offset:]))
+	rdata.Protocol = buffer[offset+2]
+	rdata.Algorithm = DNSSECAlgorithm(buffer[offset+3])
+	copy(rdata.PublicKey, buffer[offset+4:offset+rdLen])
+	return offset + rdata.Size(), nil
+}
+
+// NSEC RDATA 编码格式
+// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |                       Next Domain Name                        |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |                        Type Bit Maps                          |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+// DNSRDATANSEC 结构体表示 NSEC 类型的 DNS 资源记录的 RDATA 部分。
+// 其包含以下字段：
+//   - NextDomainName: 下一个域名。
+//   - TypeBitMaps: 类型位图。
+//
+// RFC 4034 2.1 节 定义了 NSEC 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// 其 Type 值为 47。
+type DNSRDATANSEC struct {
+	NextDomainName string
+	TypeBitMaps    []byte
+}
+
+func (rdata *DNSRDATANSEC) Type() DNSType {
+	return DNSRRTypeNSEC
+}
+
+func (rdata *DNSRDATANSEC) Size() int {
+	return GetDomainNameWireLen(&rdata.NextDomainName) + len(rdata.TypeBitMaps)
+}
+
+func (rdata *DNSRDATANSEC) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Next Domain Name: ", rdata.NextDomainName,
+		"\nType Bit Maps: ", rdata.TypeBitMaps,
+	)
+}
+
+func (rdata *DNSRDATANSEC) Encode() []byte {
+	bytesArray := make([]byte, rdata.Size())
+	offset, _ := EncodeDomainNameToBuffer(&rdata.NextDomainName, bytesArray)
+	copy(bytesArray[offset:], rdata.TypeBitMaps)
+	return bytesArray
+}
+
+func (rdata *DNSRDATANSEC) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than NSEC RDATA size %d", len(buffer), rdata.Size())
+	}
+	offset, err := EncodeDomainNameToBuffer(&rdata.NextDomainName, buffer)
+	if err != nil {
+		return -1, err
+	}
+	copy(buffer[offset:], rdata.TypeBitMaps)
+	return rdata.Size(), nil
+}
+
+func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	var err error
+	var rdEnd = offset + rdLen
+	if len(buffer) < rdEnd {
+		return -1, fmt.Errorf("method DNSRDATANSEC DecodeFromBuffer failed: buffer length %d is less than offset %d + NSEC RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	rdata.NextDomainName, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
+	if err != nil {
+		return -1, fmt.Errorf("decode NSEC Next Domain Name failed: \n%v", err)
+	}
+	copy(rdata.TypeBitMaps, buffer[offset:rdEnd])
+	return offset + rdata.Size(), nil
+}
+
+// DS RDATA 编码格式
+// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |           Key Tag            |   Algorithm   |   Digest Type  |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// /                                                               /
+// /                            Digest                             /
+// /                                                               /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+// DNSRDATADS 结构体表示 DS 类型的 DNS 资源记录的 RDATA 部分。
+// 其包含以下字段：
+//   - KeyTag: 16位无符号整数，表示密钥标签。
+//   - Algorithm: 8位无符号整数，表示密钥算法。
+//   - DigestType: 8位无符号整数，表示摘要类型。
+//   - Digest: 字节切片，表示摘要。
+//
+// RFC 4034 2.1 节 定义了 DS 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// 其 Type 值为 43。
+type DNSRDATADS struct {
+	KeyTag     uint16
+	Algorithm  DNSSECAlgorithm
+	DigestType DNSSECDigestType
+	Digest     []byte
+}
+
+func (rdata *DNSRDATADS) Type() DNSType {
+	return DNSRRTypeDS
+}
+
+func (rdata *DNSRDATADS) Size() int {
+	return 4 + len(rdata.Digest)
+}
+
+func (rdata *DNSRDATADS) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Key Tag: ", rdata.KeyTag,
+		"\nAlgorithm: ", rdata.Algorithm,
+		"\nDigest Type: ", rdata.DigestType,
+		"\nDigest: ", rdata.Digest,
+	)
+}
+
+func (rdata *DNSRDATADS) Encode() []byte {
+	bytesArray := make([]byte, rdata.Size())
+	binary.BigEndian.PutUint16(bytesArray, rdata.KeyTag)
+	bytesArray[2] = byte(rdata.Algorithm)
+	bytesArray[3] = byte(rdata.DigestType)
+	copy(bytesArray[4:], rdata.Digest)
+	return bytesArray
+}
+
+func (rdata *DNSRDATADS) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("buffer length %d is less than DS RDATA size %d", len(buffer), rdata.Size())
+	}
+	binary.BigEndian.PutUint16(buffer, rdata.KeyTag)
+	buffer[2] = byte(rdata.Algorithm)
+	buffer[3] = byte(rdata.DigestType)
+	copy(buffer[4:], rdata.Digest)
+	return rdata.Size(), nil
+}
+
+func (rdata *DNSRDATADS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	if rdLen < 4 {
+		return -1, fmt.Errorf("method DNSRDATADS DecodeFromBuffer failed: DS RDATA size %d is less than 4", rdLen)
+	}
+	if len(buffer) < offset+rdLen {
+		return -1, fmt.Errorf("method DNSRDATADS DecodeFromBuffer failed: buffer length %d is less than offset %d + DS RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	rdata.KeyTag = binary.BigEndian.Uint16(buffer[offset:])
+	rdata.Algorithm = DNSSECAlgorithm(buffer[offset+2])
+	rdata.DigestType = DNSSECDigestType(buffer[offset+3])
+	copy(rdata.Digest, buffer[offset+4:offset+rdLen])
 	return offset + rdata.Size(), nil
 }
