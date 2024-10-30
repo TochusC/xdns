@@ -22,20 +22,20 @@ var expectedEncodedName = []byte{
 	0x00,
 }
 
-// 测试GetNameWireLength函数
-func TestGetNameWireLength(t *testing.T) {
+// 测试GetDomainNameWireLen函数
+func TestGetDomainNameWireLen(t *testing.T) {
 	// 测试相对域名
-	nameLength := GetNameWireLength(&testedDomainName)
+	nameLength := GetDomainNameWireLen(&testedDomainName)
 	expectedLength := len(expectedEncodedName)
 	if nameLength != expectedLength {
-		t.Errorf("function GetNameWireLength() failed:\ngot:%d\nexpected: %d",
+		t.Errorf("function GetDomainNameWireLen() failed:\ngot:%d\nexpected: %d",
 			nameLength, expectedLength)
 	}
 
 	// 测试绝对域名
-	nameLength = GetNameWireLength(&testedAbsDomainName)
+	nameLength = GetDomainNameWireLen(&testedAbsDomainName)
 	if nameLength != expectedLength {
-		t.Errorf("function GetNameWireLength() failed:\ngot:%d\nexpected: %d",
+		t.Errorf("function GetDomainNameWireLen() failed:\ngot:%d\nexpected: %d",
 			nameLength, expectedLength)
 	}
 }

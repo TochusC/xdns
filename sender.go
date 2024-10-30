@@ -71,6 +71,7 @@ func (sender Sender) Send(rInfo ResponseInfo) (SendInfo, error) {
 		go fragmentToBytes(rInfo.MAC, rInfo.IP, 0, i*8, fragment, pktChan, sender.sConf)
 	}
 
+	// 发送数据包
 	pktNum := len(fragments)
 	for pkt := range pktChan {
 		err = sender.Handle.WritePacketData(pkt)
@@ -79,6 +80,8 @@ func (sender Sender) Send(rInfo ResponseInfo) (SendInfo, error) {
 		}
 		sInfo.FragmentsNum++
 		sInfo.TotalSize += len(pkt)
+
+		// 发送完毕
 		if sInfo.FragmentsNum == pktNum {
 			break
 		}

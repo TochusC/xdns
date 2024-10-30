@@ -44,7 +44,7 @@ func (s *GoDNSSever) Start() {
 }
 
 // GoStart为示例函数，其将会一键式创建一个基础 GoDNS 并启动它。
-// 这个 GoDNS 将有一个DullResponser，将不会对DNS请求做出任何回复...
+// 这个 GoDNS 将有一个DullResponser，它将对DNS请求做出简单的回复...
 // 参数：
 //   - DNSServerConfig: DNS 服务器配置
 //   - Responser: DNS 回复生成器

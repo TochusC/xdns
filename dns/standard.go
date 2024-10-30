@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// name.go 文件定义了 DNS 域名的编解码函数。
+// standard.go 文件定义了 DNS 所使用到的一些标准化函数
+// 其包括 <domain-dName>, <character-string> 的编解码函数。
 // 可接受绝对域名及相对域名，生成的域名均为相对域名。
 // 当域名为根域名时，返回"."。
 //
@@ -24,19 +25,18 @@
 //   - 以指针结尾的标签序列。
 //
 // 详细内容请参阅 RFC 1035 4.1.4. Message compression
-
 package dns
 
 import (
 	"fmt"
 )
 
-// GetNameWireLength 返回域名的 编码格式长度。
+// GetDomainNameWireLen 返回域名的 编码格式长度。
 //   - 其接收参数为 域名字符串 的指针，
 //   - 返回值为域名的 编码格式长度。
 //
 // 可以接收绝对域名及相对域名，所有域名均以绝对域名的长度计算。
-func GetNameWireLength(name *string) int {
+func GetDomainNameWireLen(name *string) int {
 	nameLength := len(*name)
 	if (*name)[nameLength-1] == '.' {
 		// 根域名
@@ -51,11 +51,11 @@ func GetNameWireLength(name *string) int {
 // EncodeDomainName 编码域名，其接受字符串，并返回编码后的字节切片。
 // 可以接收绝对域名及相对域名，生成的域名都会以'.'(0x00)结尾。
 func EncodeDomainName(name *string) []byte {
-	encodedLength := GetNameWireLength(name)
-	byteArray := make([]byte, encodedLength)
+	encodedLen := GetDomainNameWireLen(name)
+	byteArray := make([]byte, encodedLen)
 
 	// 根域名，返回0x00
-	if encodedLength == 1 {
+	if encodedLen == 1 {
 		byteArray[0] = 0x00
 		return byteArray
 	}
@@ -71,8 +71,8 @@ func EncodeDomainName(name *string) []byte {
 		}
 	}
 	if labelLength != 0 {
-		byteArray[encodedLength-labelLength-2] = byte(labelLength)
-		copy(byteArray[encodedLength-labelLength-1:], (*name)[len(*name)-labelLength:])
+		byteArray[encodedLen-labelLength-2] = byte(labelLength)
+		copy(byteArray[encodedLen-labelLength-1:], (*name)[len(*name)-labelLength:])
 	}
 	return byteArray
 }
@@ -83,14 +83,14 @@ func EncodeDomainName(name *string) []byte {
 //
 // 如果出现错误，返回 -1, 及 相应报错 。
 func EncodeDomainNameToBuffer(name *string, buffer []byte) (int, error) {
-	encodedLength := GetNameWireLength(name)
-	if len(buffer) < encodedLength {
+	encodedLen := GetDomainNameWireLen(name)
+	if len(buffer) < encodedLen {
 		return -1, fmt.Errorf(
 			"EncodeDomainNameToBuffer Error: buffer is too small, require %d byte size, but got %d",
-			encodedLength, len(buffer))
+			encodedLen, len(buffer))
 	}
 
-	if encodedLength == 1 {
+	if encodedLen == 1 {
 		buffer[0] = 0x00
 		return 1, nil
 	}
@@ -106,10 +106,10 @@ func EncodeDomainNameToBuffer(name *string, buffer []byte) (int, error) {
 		}
 	}
 	if labelLength != 0 {
-		buffer[encodedLength-labelLength-2] = byte(labelLength)
-		copy(buffer[encodedLength-labelLength-1:], (*name)[len(*name)-labelLength:])
+		buffer[encodedLen-labelLength-2] = byte(labelLength)
+		copy(buffer[encodedLen-labelLength-1:], (*name)[len(*name)-labelLength:])
 	}
-	return encodedLength, nil
+	return encodedLen, nil
 }
 
 const (
@@ -183,4 +183,86 @@ func DecodeDomainNameFromBuffer(data []byte, offset int) (string, int, error) {
 		return ".", offset + 1, nil
 	}
 	return string(name), offset + nameLength + 1, nil
+}
+
+func GetCharacterStrWireLen(cStr *string) int {
+	strLen := len(*cStr)
+	if strLen == 0 {
+		return 1
+	}
+
+	frags := (strLen + 254) / 255
+	return strLen + frags
+}
+
+func EncodeCharacterStr(cStr *string) []byte {
+	strLen := len(*cStr)
+	if strLen == 0 {
+		return []byte{0x00}
+	}
+
+	encodedLen := GetCharacterStrWireLen(cStr)
+	byteArray := make([]byte, encodedLen)
+
+	rawTvlr := 0
+	enTvlr := 0
+	for rawTvlr+255 < strLen {
+		byteArray[enTvlr] = 255
+		copy(byteArray[enTvlr+1:], (*cStr)[rawTvlr:rawTvlr+255])
+		rawTvlr += 255
+		enTvlr += 256
+	}
+	if rawTvlr < strLen {
+		byteArray[enTvlr] = byte(strLen - rawTvlr)
+		copy(byteArray[enTvlr+1:], (*cStr)[rawTvlr:])
+	}
+	return byteArray
+}
+
+func EncodeCharacterStrToBuffer(cStr *string, buffer []byte) (int, error) {
+	encodedLen := GetCharacterStrWireLen(cStr)
+	if len(buffer) < encodedLen {
+		return -1, fmt.Errorf(
+			"EncodeCharacterStrToBuffer Error: buffer is too small, require %d byte size, but got %d",
+			encodedLen, len(buffer))
+	}
+
+	strLen := len(*cStr)
+	if strLen == 0 {
+		buffer[0] = 0x00
+		return 1, nil
+	}
+
+	rawTvlr := 0
+	enTvlr := 0
+	for rawTvlr+255 < strLen {
+		buffer[enTvlr] = 255
+		copy(buffer[enTvlr+1:], (*cStr)[rawTvlr:rawTvlr+255])
+		rawTvlr += 255
+		enTvlr += 256
+	}
+	if rawTvlr < strLen {
+		buffer[enTvlr] = byte(strLen - rawTvlr)
+		copy(buffer[enTvlr+1:], (*cStr)[rawTvlr:])
+	}
+	return encodedLen, nil
+}
+
+func DecodeCharacterStr(data []byte) string {
+	dLen := len(data)
+	if dLen == 1 {
+		return ""
+	}
+
+	rstBytes := make([]byte, dLen)
+
+	rawTvlr := 0
+	deTvlr := 0
+	for rawTvlr < dLen {
+		strLen := int(data[rawTvlr])
+		copy(rstBytes[deTvlr:], data[rawTvlr+1:rawTvlr+strLen+1])
+		rawTvlr += strLen + 1
+		deTvlr += strLen
+	}
+	return string(rstBytes[:deTvlr])
 }

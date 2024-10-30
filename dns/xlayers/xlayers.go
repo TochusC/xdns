@@ -1,6 +1,6 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
-// xlayers.go 文件实现了gopacket.Layer接口, 提供了DNS层的封装结构。
+// xlayers.go 文件提供了实现gopacket.Layer接口的 DNS 封装结构。
 package xlayers
 
 import (

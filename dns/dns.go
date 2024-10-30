@@ -474,7 +474,7 @@ func (dnsHeader *DNSHeader) DecodeFromBuffer(buffer []byte, offset int) (int, er
 
 // Size 返回DNS消息 的 问题部分的大小。
 func (dnsQuestion *DNSQuestion) Size() int {
-	return GetNameWireLength(&dnsQuestion.Name) + 4
+	return GetDomainNameWireLen(&dnsQuestion.Name) + 4
 }
 
 // String 以“易读的形式”返回DNS消息 的 问题部分的字符串表示。
@@ -686,7 +686,7 @@ func (responseSection DNSResponseSection) DecodeFromBuffer(buffer []byte, offset
 // Size 返回 DNS 资源记录的*准确*大小。
 //   - RDLength 字段可由用户自行设置一个错误的值。
 func (rr *DNSResourceRecord) Size() int {
-	return GetNameWireLength(&rr.Name) + 10 + rr.RData.Size()
+	return GetDomainNameWireLen(&rr.Name) + 10 + rr.RData.Size()
 }
 
 // String 以*易读的形式*返回 DNS 资源记录的字符串表示。
@@ -776,9 +776,9 @@ func (rr *DNSResourceRecord) DecodeFromBuffer(buffer []byte, offset int) (int, e
 	// 解码RDLen
 	rr.RDLen = binary.BigEndian.Uint16(buffer[offset+8:])
 	// 根据类型初始化 RData
-	rr.RData = NewDNSRRRDATA(rr.Type)
+	rr.RData = DNSRRRDATAFactory(rr.Type)
 	// 解码RData
-	offset, err = rr.RData.DecodeFromBuffer(buffer, offset+10)
+	offset, err = rr.RData.DecodeFromBuffer(buffer, offset+10, int(rr.RDLen))
 	if err != nil {
 		return -1, err
 	}

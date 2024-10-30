@@ -65,7 +65,7 @@ func TestDNSRDATAAEncodeToBuffer(t *testing.T) {
 func TestDNSRDATAADecodeFromBuffer(t *testing.T) {
 	// 正常情况
 	decodedDNSRDATAA := DNSRDATAA{}
-	offset, err := decodedDNSRDATAA.DecodeFromBuffer(testedDNSRDATAAEncoded, 0)
+	offset, err := decodedDNSRDATAA.DecodeFromBuffer(testedDNSRDATAAEncoded, 0, 0)
 	if err != nil {
 		t.Errorf("function DecodeFromBuffer() failed:\n%s", err)
 	}
@@ -79,19 +79,19 @@ func TestDNSRDATAADecodeFromBuffer(t *testing.T) {
 
 	// 缓冲区长度不足
 	decodedDNSRDATAA = DNSRDATAA{}
-	_, err = decodedDNSRDATAA.DecodeFromBuffer(testedDNSRDATAAEncoded, 1)
+	_, err = decodedDNSRDATAA.DecodeFromBuffer(testedDNSRDATAAEncoded, 1, 0)
 	if err == nil {
 		t.Errorf("function DecodeFromBuffer() failed:\n%s", "expected an error but got nil")
 	}
 }
 
 // 待测试的 NS RDATA 对象。
-var testedDNSNSRDATA = DNSNSRDATA{
-	NS: "ns.example.com",
+var testedDNSRDATANS = DNSRDATANS{
+	NSDNAME: "ns.example.com",
 }
 
 // NS RDATA 的期望编码结果。
-var testedDNSNSRDATAEncoded = []byte{
+var testedDNSRDATANSEncoded = []byte{
 	0x02, 'n', 's',
 	0x07, 'e', 'x', 'a', 'm', 'p', 'l', 'e',
 	0x03, 'c', 'o', 'm',
@@ -99,72 +99,72 @@ var testedDNSNSRDATAEncoded = []byte{
 }
 
 // 测试 NS RDATA 的 Size 方法
-func TestDNSNSRDATASize(t *testing.T) {
-	size := testedDNSNSRDATA.Size()
-	expectedSize := len(testedDNSNSRDATAEncoded)
+func TestDNSRDATANSSize(t *testing.T) {
+	size := testedDNSRDATANS.Size()
+	expectedSize := len(testedDNSRDATANSEncoded)
 	if size != expectedSize {
-		t.Errorf("function DNSNSRDATASize() failed:\ngot:%d\nexpected: %d",
+		t.Errorf("function DNSRDATANSSize() failed:\ngot:%d\nexpected: %d",
 			size, expectedSize)
 	}
 }
 
 // 测试 NS RDATA 的 String 方法
-func TestDNSNSRDATAString(t *testing.T) {
-	t.Logf("NS RDATA String():\n%s", testedDNSNSRDATA.String())
+func TestDNSRDATANSString(t *testing.T) {
+	t.Logf("NS RDATA String():\n%s", testedDNSRDATANS.String())
 }
 
 // 测试 NS RDATA 的 Encode 方法
-func TestDNSNSRDATAEncode(t *testing.T) {
-	encodedDNSNSRDATA := testedDNSNSRDATA.Encode()
-	if !bytes.Equal(encodedDNSNSRDATA, testedDNSNSRDATAEncoded) {
-		t.Errorf("function DNSNSRDATAEncode() failed:\ngot:\n%v\nexpected:\n%v",
-			encodedDNSNSRDATA, testedDNSNSRDATAEncoded)
+func TestDNSRDATANSEncode(t *testing.T) {
+	encodedDNSRDATANS := testedDNSRDATANS.Encode()
+	if !bytes.Equal(encodedDNSRDATANS, testedDNSRDATANSEncoded) {
+		t.Errorf("function DNSRDATANSEncode() failed:\ngot:\n%v\nexpected:\n%v",
+			encodedDNSRDATANS, testedDNSRDATANSEncoded)
 	}
 }
 
 // 测试 NS RDATA 的 EncodeToBuffer 方法
-func TestDNSNSRDATAEncodeToBuffer(t *testing.T) {
+func TestDNSRDATANSEncodeToBuffer(t *testing.T) {
 	// 正常情况
-	buffer := make([]byte, len(testedDNSNSRDATAEncoded))
-	_, err := testedDNSNSRDATA.EncodeToBuffer(buffer)
+	buffer := make([]byte, len(testedDNSRDATANSEncoded))
+	_, err := testedDNSRDATANS.EncodeToBuffer(buffer)
 	if err != nil {
-		t.Errorf("function DNSNSRDATAEncodeToBuffer() failed:\n%s", err)
+		t.Errorf("function DNSRDATANSEncodeToBuffer() failed:\n%s", err)
 	}
-	if !bytes.Equal(buffer, testedDNSNSRDATAEncoded) {
-		t.Errorf("function DNSNSRDATAEncodeToBuffer() failed:\ngot:\n%v\nexpected:\n%v",
-			buffer, testedDNSNSRDATAEncoded)
+	if !bytes.Equal(buffer, testedDNSRDATANSEncoded) {
+		t.Errorf("function DNSRDATANSEncodeToBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			buffer, testedDNSRDATANSEncoded)
 	}
 
 	// 缓冲区长度不足
 	buffer = make([]byte, 1)
-	_, err = testedDNSNSRDATA.EncodeToBuffer(buffer)
+	_, err = testedDNSRDATANS.EncodeToBuffer(buffer)
 	if err == nil {
-		t.Errorf("function DNSNSRDATAEncodeToBuffer() failed: expected an error but got nil")
+		t.Errorf("function DNSRDATANSEncodeToBuffer() failed: expected an error but got nil")
 	}
 }
 
 // 测试 NS RDATA 的 DecodeFromBuffer 方法
-func TestDNSNSRDATADecodeFromBuffer(t *testing.T) {
+func TestDNSRDATANSDecodeFromBuffer(t *testing.T) {
 	// 正常情况
-	decodedDNSNSRDATA := DNSNSRDATA{}
-	offset, err := decodedDNSNSRDATA.DecodeFromBuffer(testedDNSNSRDATAEncoded, 0)
+	decodedDNSRDATANS := DNSRDATANS{}
+	offset, err := decodedDNSRDATANS.DecodeFromBuffer(testedDNSRDATANSEncoded, 0, 0)
 	if err != nil {
-		t.Errorf("function DNSNSRDATADecodeFromBuffer() failed:\n%s", err)
+		t.Errorf("function DNSRDATANSDecodeFromBuffer() failed:\n%s", err)
 	}
-	if offset != len(testedDNSNSRDATAEncoded) {
-		t.Errorf("function DNSNSRDATADecodeFromBuffer() failed:\ngot:%d\nexpected: %d",
-			offset, len(testedDNSNSRDATAEncoded))
+	if offset != len(testedDNSRDATANSEncoded) {
+		t.Errorf("function DNSRDATANSDecodeFromBuffer() failed:\ngot:%d\nexpected: %d",
+			offset, len(testedDNSRDATANSEncoded))
 	}
-	if decodedDNSNSRDATA != testedDNSNSRDATA {
-		t.Errorf("function DNSNSRDATADecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
-			decodedDNSNSRDATA, testedDNSNSRDATA)
+	if decodedDNSRDATANS != testedDNSRDATANS {
+		t.Errorf("function DNSRDATANSDecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			decodedDNSRDATANS, testedDNSRDATANS)
 	}
 
 	// 缓冲区长度不足
-	decodedDNSNSRDATA = DNSNSRDATA{}
-	_, err = decodedDNSNSRDATA.DecodeFromBuffer(testedDNSNSRDATAEncoded, 1)
+	decodedDNSRDATANS = DNSRDATANS{}
+	_, err = decodedDNSRDATANS.DecodeFromBuffer(testedDNSRDATANSEncoded, 1, 0)
 	if err == nil {
-		t.Error("function DNSNSRDATADecodeFromBuffer() failed: expected an error but got nil")
+		t.Error("function DNSRDATANSDecodeFromBuffer() failed: expected an error but got nil")
 	}
 }
 
@@ -221,7 +221,7 @@ func TestDNSRDATACNAMEEncodeToBuffer(t *testing.T) {
 func TestDNSRDATACNAMEDecodeFromBuffer(t *testing.T) {
 	// 正常情况
 	decodedDNSRDATACNAME := DNSRDATACNAME{}
-	offset, err := decodedDNSRDATACNAME.DecodeFromBuffer(testedDNSRDATACNAMEEncoded, 0)
+	offset, err := decodedDNSRDATACNAME.DecodeFromBuffer(testedDNSRDATACNAMEEncoded, 0, 0)
 	if err != nil {
 		t.Errorf("function DNSRDATACNAMEDecodeFromBuffer() failed:\n%s", err)
 	}
@@ -236,8 +236,61 @@ func TestDNSRDATACNAMEDecodeFromBuffer(t *testing.T) {
 
 	// 缓冲区长度不足
 	decodedDNSRDATACNAME = DNSRDATACNAME{}
-	_, err = decodedDNSRDATACNAME.DecodeFromBuffer(testedDNSRDATACNAMEEncoded, 1)
+	_, err = decodedDNSRDATACNAME.DecodeFromBuffer(testedDNSRDATACNAMEEncoded, 1, 0)
 	if err == nil {
 		t.Error("function DNSRDATACNAMEDecodeFromBuffer() failed: expected an error but got nil")
+	}
+}
+
+// 待测试TXT记录RDATA对象。
+var testedDNSRDATATXT = DNSRDATATXT{
+	TXT: "TXT",
+}
+var testedDNSRDATATXTEncoded = []byte{
+	0x03, 'T', 'X', 'T',
+}
+
+// 测试 TXT RDATA 的 Size 方法
+func TestDNSRDATATXTSize(t *testing.T) {
+	size := testedDNSRDATATXT.Size()
+	expectedSize := len(testedDNSRDATATXTEncoded)
+	if size != expectedSize {
+		t.Errorf("function DNSRDATATXTSize() failed:\ngot:%d\nexpected: %d",
+			size, expectedSize)
+	}
+}
+
+// 测试 TXT RDATA 的 String 方法
+func TestDNSRDATATXTString(t *testing.T) {
+	t.Logf("TXT RDATA String():\n%s", testedDNSRDATATXT.String())
+}
+
+// 测试 TXT RDATA 的 Encode 方法
+func TestDNSRDATATXTEncode(t *testing.T) {
+	encodedDNSRDATATXT := testedDNSRDATATXT.Encode()
+	if !bytes.Equal(encodedDNSRDATATXT, testedDNSRDATATXTEncoded) {
+		t.Errorf("function DNSRDATATXTEncode() failed:\ngot:\n%v\nexpected:\n%v",
+			encodedDNSRDATATXT, testedDNSRDATATXTEncoded)
+	}
+}
+
+// 测试 TXT RDATA 的 EncodeToBuffer 方法
+func TestDNSRDATATXTEncodeToBuffer(t *testing.T) {
+	// 正常情况
+	buffer := make([]byte, len(testedDNSRDATATXTEncoded))
+	_, err := testedDNSRDATATXT.EncodeToBuffer(buffer)
+	if err != nil {
+		t.Errorf("function DNSRDATATXTEncodeToBuffer() failed:\n%s", err)
+	}
+	if !bytes.Equal(buffer, testedDNSRDATATXTEncoded) {
+		t.Errorf("function DNSRDATATXTEncodeToBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			buffer, testedDNSRDATATXTEncoded)
+	}
+
+	// 缓冲区长度不足
+	buffer = make([]byte, 1)
+	_, err = testedDNSRDATATXT.EncodeToBuffer(buffer)
+	if err == nil {
+		t.Error("function DNSRDATATXTEncodeToBuffer() failed: expected an error but got nil")
 	}
 }

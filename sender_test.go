@@ -10,6 +10,7 @@ import (
 
 var testedRandomPacket = make([]byte, 8000)
 
+// 测试分片
 func TestFragment(t *testing.T) {
 	// 测试分片
 	fragments, err := Fragment(testedRandomPacket, 1500, 14)
