@@ -185,6 +185,21 @@ func DecodeDomainNameFromBuffer(data []byte, offset int) (string, int, error) {
 	return string(name), offset + nameLength + 1, nil
 }
 
+// CountDomainNameLabels 返回域名的标签数量。
+func CountDomainNameLabels(name *string) int {
+	labelNum := 0
+	nameLen := len(*name)
+	if (*name)[nameLen-1] == '.' {
+		nameLen--
+	}
+	for i := 0; i < nameLen; i++ {
+		if (*name)[i] == '.' {
+			labelNum++
+		}
+	}
+	return labelNum + 1
+}
+
 func GetCharacterStrWireLen(cStr *string) int {
 	strLen := len(*cStr)
 	if strLen == 0 {

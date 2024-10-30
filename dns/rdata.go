@@ -366,7 +366,7 @@ type DNSRDATARRSIG struct {
 	Algorithm                          DNSSECAlgorithm
 	Labels                             uint8
 	OriginalTTL, Expiration, Inception uint32
-	KeyTag                             DNSKEYFlag
+	KeyTag                             uint16
 	SignerName                         string
 	Signature                          []byte
 }
@@ -442,7 +442,7 @@ func (rdata *DNSRDATARRSIG) DecodeFromBuffer(buffer []byte, offset int, rdLen in
 	rdata.OriginalTTL = binary.BigEndian.Uint32(buffer[offset+4:])
 	rdata.Expiration = binary.BigEndian.Uint32(buffer[offset+8:])
 	rdata.Inception = binary.BigEndian.Uint32(buffer[offset+12:])
-	rdata.KeyTag = DNSKEYFlag(binary.BigEndian.Uint16(buffer[offset+16:]))
+	rdata.KeyTag = binary.BigEndian.Uint16(buffer[offset+16:])
 	rdata.SignerName, offset, err = DecodeDomainNameFromBuffer(buffer, offset+18)
 	if err != nil {
 		return -1, fmt.Errorf("decode RRSIG Signer Name failed: \n%v", err)
