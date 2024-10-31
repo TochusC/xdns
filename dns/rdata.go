@@ -5,6 +5,7 @@
 package dns
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -38,6 +39,12 @@ type DNSRRRDATA interface {
 	//  - 其返回值为 RDATA 部分的字符串表示。
 	String() string
 
+	// Equal 方法判断两个 RDATA 部分是否相等。
+	//  - 其接收一个 DNSRRRDATA 类型的参数。
+	//  - 其返回值为 两个 RDATA 部分是否相等。
+	//
+	Equal(DNSRRRDATA) bool
+
 	/* TODO: Mais 等到真正需要时再实现吧？
 	// Masterlize 方法以*Master File中的ASCII表示*返回对应 资源记录 RDATA 部分的 字符串表示。
 	//  - 其返回值为 RDATA 部分的字符串表示。
@@ -54,8 +61,13 @@ type DNSRRRDATA interface {
 	EncodeToBuffer(buffer []byte) (int, error)
 
 	// DecodeFromBuffer 方法从包含 DNS消息 的缓冲区中解码 RDATA 部分。
-	//  - 其接收 缓冲区, 偏移量 作为参数。
-	//  - 返回值为 解码后的偏移量 和 错误信息。
+	// 其接受参数为：
+	//  - 缓冲区
+	//  - 偏移量
+	//  - RDATA 部分的长度，对于某些不依赖RDLEN的RDATA，可传入0。
+	// 返回值为：
+	//  - 解码后的偏移量
+	//  - 错误信息
 	//
 	// 如果出现错误，返回 -1, 及 相应报错 。
 	DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error)
@@ -107,6 +119,14 @@ func (rdata *DNSRDATAUnknown) Encode() []byte {
 	return rdata.RData
 }
 
+func (rdata *DNSRDATAUnknown) Equal(rr DNSRRRDATA) bool {
+	rru, ok := rr.(*DNSRDATAUnknown)
+	if !ok {
+		return false
+	}
+	return rdata.RRType == rru.RRType && bytes.Equal(rdata.RData, rru.RData)
+}
+
 func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than Unknown RDATA size %d", len(buffer), rdata.Size())
@@ -150,6 +170,14 @@ func (rdata *DNSRDATAA) String() string {
 		"### RDATA Section ###\n",
 		"Address: ", rdata.Address.String(),
 	)
+}
+
+func (rdata *DNSRDATAA) Equal(rr DNSRRRDATA) bool {
+	rra, ok := rr.(*DNSRDATAA)
+	if !ok {
+		return false
+	}
+	return rdata.Address.Equal(rra.Address)
 }
 
 func (rdata *DNSRDATAA) Encode() []byte {
@@ -211,6 +239,14 @@ func (rdata *DNSRDATANS) String() string {
 	)
 }
 
+func (rdata *DNSRDATANS) Equal(rr DNSRRRDATA) bool {
+	rrns, ok := rr.(*DNSRDATANS)
+	if !ok {
+		return false
+	}
+	return rdata.NSDNAME == rrns.NSDNAME
+}
+
 func (rdata *DNSRDATANS) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	_, err := EncodeDomainNameToBuffer(&rdata.NSDNAME, bytesArray)
@@ -268,6 +304,14 @@ func (rdata *DNSRDATACNAME) String() string {
 	)
 }
 
+func (rdata *DNSRDATACNAME) Equal(rr DNSRRRDATA) bool {
+	rrcname, ok := rr.(*DNSRDATACNAME)
+	if !ok {
+		return false
+	}
+	return rdata.CNAME == rrcname.CNAME
+}
+
 func (rdata *DNSRDATACNAME) Encode() []byte {
 	return EncodeDomainName(&rdata.CNAME)
 }
@@ -323,6 +367,14 @@ func (rdata *DNSRDATATXT) String() string {
 	)
 }
 
+func (rdata *DNSRDATATXT) Equal(rr DNSRRRDATA) bool {
+	rrtxt, ok := rr.(*DNSRDATATXT)
+	if !ok {
+		return false
+	}
+	return rdata.TXT == rrtxt.TXT
+}
+
 func (rTXT *DNSRDATATXT) Encode() []byte {
 	return EncodeCharacterStr(&rTXT.TXT)
 }
@@ -332,10 +384,11 @@ func (rdata *DNSRDATATXT) EncodeToBuffer(buffer []byte) (int, error) {
 }
 
 func (rdata *DNSRDATATXT) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
-	if len(buffer) < offset+rdLen {
+	rdEnd := offset + rdLen
+	if len(buffer) < rdEnd {
 		return -1, fmt.Errorf("method DNSRDATATXT DecodeFromBuffer failed: buffer length %d is less than offset %d + TXT RDATA size %d", len(buffer), offset, rdata.Size())
 	}
-	rdata.TXT = DecodeCharacterStr(buffer[offset : offset+rdLen])
+	rdata.TXT = DecodeCharacterStr(buffer[offset:rdEnd])
 	return offset + rdata.Size(), nil
 }
 
@@ -361,6 +414,19 @@ func (rdata *DNSRDATATXT) DecodeFromBuffer(buffer []byte, offset int, rdLen int)
 // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 // DNSRRSIGRDATA 结构体表示 RRSIG 类型的 DNS 资源记录的 RDATA 部分。
+//   - 其包含以下字段：
+//   - TypeCovered: 16位无符号整数，表示被签名的资源记录的类型。
+//   - Algorithm: 8位无符号整数，表示签名算法。
+//   - Labels: 8位无符号整数，表示签名域名的标签数。
+//   - OriginalTTL: 32位无符号整数，表示被签名资源记录的 TTL。
+//   - Expiration: 32位无符号整数，表示签名过期时间。
+//   - Inception: 32位无符号整数，表示签名生效时间。
+//   - KeyTag: 16位无符号整数，表示签名公钥的 Key Tag。
+//   - SignerName: 字符串，表示签名者名称。
+//   - Signature: 字节切片，表示签名。
+//
+// RFC 4034 3.1 节 定义了 RRSIG 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// 其 Type 值为 46。
 type DNSRDATARRSIG struct {
 	TypeCovered                        DNSType
 	Algorithm                          DNSSECAlgorithm
@@ -394,6 +460,22 @@ func (rdata *DNSRDATARRSIG) String() string {
 	)
 }
 
+func (rdata *DNSRDATARRSIG) Equal(rr DNSRRRDATA) bool {
+	rrsig, ok := rr.(*DNSRDATARRSIG)
+	if !ok {
+		return false
+	}
+	return rdata.TypeCovered == rrsig.TypeCovered &&
+		rdata.Algorithm == rrsig.Algorithm &&
+		rdata.Labels == rrsig.Labels &&
+		rdata.OriginalTTL == rrsig.OriginalTTL &&
+		rdata.Expiration == rrsig.Expiration &&
+		rdata.Inception == rrsig.Inception &&
+		rdata.KeyTag == rrsig.KeyTag &&
+		rdata.SignerName == rrsig.SignerName &&
+		bytes.Equal(rdata.Signature, rrsig.Signature)
+}
+
 func (rdata *DNSRDATARRSIG) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	binary.BigEndian.PutUint16(bytesArray, uint16(rdata.TypeCovered))
@@ -404,7 +486,7 @@ func (rdata *DNSRDATARRSIG) Encode() []byte {
 	binary.BigEndian.PutUint32(bytesArray[12:], rdata.Inception)
 	binary.BigEndian.PutUint16(bytesArray[16:], uint16(rdata.KeyTag))
 	offset, _ := EncodeDomainNameToBuffer(&rdata.SignerName, bytesArray[18:])
-	copy(bytesArray[offset:], rdata.Signature)
+	copy(bytesArray[offset+18:], rdata.Signature)
 	return bytesArray
 }
 
@@ -423,7 +505,7 @@ func (rdata *DNSRDATARRSIG) EncodeToBuffer(buffer []byte) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	copy(buffer[offset:], rdata.Signature)
+	copy(buffer[offset+18:], rdata.Signature)
 	return rdata.Size(), nil
 }
 
@@ -448,7 +530,7 @@ func (rdata *DNSRDATARRSIG) DecodeFromBuffer(buffer []byte, offset int, rdLen in
 		return -1, fmt.Errorf("decode RRSIG Signer Name failed: \n%v", err)
 	}
 	copy(rdata.Signature, buffer[offset:rdEnd])
-	return offset + rdata.Size(), nil
+	return rdEnd, nil
 }
 
 // DNSKEY RDATA 编码格式
@@ -473,7 +555,7 @@ func (rdata *DNSRDATARRSIG) DecodeFromBuffer(buffer []byte, offset int, rdLen in
 // 其 Type 值为 48。
 type DNSRDATADNSKEY struct {
 	Flags     DNSKEYFlag
-	Protocol  uint8
+	Protocol  DNSKEYProtocol
 	Algorithm DNSSECAlgorithm
 	PublicKey []byte
 }
@@ -496,11 +578,22 @@ func (rdata *DNSRDATADNSKEY) String() string {
 	)
 }
 
+func (rdata *DNSRDATADNSKEY) Equal(rr DNSRRRDATA) bool {
+	rrkey, ok := rr.(*DNSRDATADNSKEY)
+	if !ok {
+		return false
+	}
+	return rdata.Flags == rrkey.Flags &&
+		rdata.Protocol == rrkey.Protocol &&
+		rdata.Algorithm == rrkey.Algorithm &&
+		bytes.Equal(rdata.PublicKey, rrkey.PublicKey)
+}
+
 func (rdata *DNSRDATADNSKEY) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	binary.BigEndian.PutUint16(bytesArray, uint16(rdata.Flags))
-	bytesArray[2] = rdata.Protocol
-	bytesArray[3] = byte(rdata.Algorithm)
+	bytesArray[2] = uint8(rdata.Protocol)
+	bytesArray[3] = uint8(rdata.Algorithm)
 	copy(bytesArray[4:], rdata.PublicKey)
 	return bytesArray
 }
@@ -510,13 +603,14 @@ func (rdata *DNSRDATADNSKEY) EncodeToBuffer(buffer []byte) (int, error) {
 		return -1, fmt.Errorf("buffer length %d is less than DNSKEY RDATA size %d", len(buffer), rdata.Size())
 	}
 	binary.BigEndian.PutUint16(buffer, uint16(rdata.Flags))
-	buffer[2] = rdata.Protocol
+	buffer[2] = uint8(rdata.Protocol)
 	buffer[3] = byte(rdata.Algorithm)
 	copy(buffer[4:], rdata.PublicKey)
 	return rdata.Size(), nil
 }
 
 func (rdata *DNSRDATADNSKEY) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	rdEnd := offset + rdLen
 	if rdLen < 4 {
 		return -1, fmt.Errorf("method DNSRDATADNSKEY DecodeFromBuffer failed: DNSKEY RDATA size %d is less than 4", rdLen)
 	}
@@ -524,10 +618,10 @@ func (rdata *DNSRDATADNSKEY) DecodeFromBuffer(buffer []byte, offset int, rdLen i
 		return -1, fmt.Errorf("method DNSRDATADNSKEY DecodeFromBuffer failed: buffer length %d is less than offset %d + DNSKEY RDATA size %d", len(buffer), offset, rdata.Size())
 	}
 	rdata.Flags = DNSKEYFlag(binary.BigEndian.Uint16(buffer[offset:]))
-	rdata.Protocol = buffer[offset+2]
+	rdata.Protocol = DNSKEYProtocol(buffer[offset+2])
 	rdata.Algorithm = DNSSECAlgorithm(buffer[offset+3])
-	copy(rdata.PublicKey, buffer[offset+4:offset+rdLen])
-	return offset + rdata.Size(), nil
+	copy(rdata.PublicKey, buffer[offset+4:rdEnd])
+	return rdEnd, nil
 }
 
 // NSEC RDATA 编码格式
@@ -567,6 +661,15 @@ func (rdata *DNSRDATANSEC) String() string {
 	)
 }
 
+func (rdata *DNSRDATANSEC) Equal(rr DNSRRRDATA) bool {
+	rrnsec, ok := rr.(*DNSRDATANSEC)
+	if !ok {
+		return false
+	}
+	return rdata.NextDomainName == rrnsec.NextDomainName &&
+		bytes.Equal(rdata.TypeBitMaps, rrnsec.TypeBitMaps)
+}
+
 func (rdata *DNSRDATANSEC) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	offset, _ := EncodeDomainNameToBuffer(&rdata.NextDomainName, bytesArray)
@@ -597,7 +700,7 @@ func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int
 		return -1, fmt.Errorf("decode NSEC Next Domain Name failed: \n%v", err)
 	}
 	copy(rdata.TypeBitMaps, buffer[offset:rdEnd])
-	return offset + rdata.Size(), nil
+	return rdEnd, nil
 }
 
 // DS RDATA 编码格式
@@ -645,6 +748,17 @@ func (rdata *DNSRDATADS) String() string {
 	)
 }
 
+func (rdata *DNSRDATADS) Equal(rr DNSRRRDATA) bool {
+	rrds, ok := rr.(*DNSRDATADS)
+	if !ok {
+		return false
+	}
+	return rdata.KeyTag == rrds.KeyTag &&
+		rdata.Algorithm == rrds.Algorithm &&
+		rdata.DigestType == rrds.DigestType &&
+		bytes.Equal(rdata.Digest, rrds.Digest)
+}
+
 func (rdata *DNSRDATADS) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	binary.BigEndian.PutUint16(bytesArray, rdata.KeyTag)
@@ -666,15 +780,16 @@ func (rdata *DNSRDATADS) EncodeToBuffer(buffer []byte) (int, error) {
 }
 
 func (rdata *DNSRDATADS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	rdEnd := offset + rdLen
 	if rdLen < 4 {
 		return -1, fmt.Errorf("method DNSRDATADS DecodeFromBuffer failed: DS RDATA size %d is less than 4", rdLen)
 	}
-	if len(buffer) < offset+rdLen {
+	if len(buffer) < rdEnd {
 		return -1, fmt.Errorf("method DNSRDATADS DecodeFromBuffer failed: buffer length %d is less than offset %d + DS RDATA size %d", len(buffer), offset, rdata.Size())
 	}
 	rdata.KeyTag = binary.BigEndian.Uint16(buffer[offset:])
 	rdata.Algorithm = DNSSECAlgorithm(buffer[offset+2])
 	rdata.DigestType = DNSSECDigestType(buffer[offset+3])
-	copy(rdata.Digest, buffer[offset+4:offset+rdLen])
-	return offset + rdata.Size(), nil
+	copy(rdata.Digest, buffer[offset+4:rdEnd])
+	return rdEnd, nil
 }

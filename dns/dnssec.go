@@ -8,13 +8,25 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"math/big"
 )
+
+// ParseKeyBase64 解析 Base64 编码的密钥为字节切片
+func ParseKeyBase64(keyb64 string) []byte {
+	keyBytes, err := base64.StdEncoding.DecodeString(keyb64)
+	if err != nil {
+		panic(fmt.Sprintf("failed to decode base64 key: %s", err))
+	}
+	return keyBytes
+}
 
 // CalculateKeyTag 计算 DNSKEY 的 Key Tag
 //   - 传入 DNSKEY RDATA
@@ -41,7 +53,7 @@ func CalculateKeyTag(key DNSRDATADNSKEY) uint16 {
 //   - flag: DNSKEY Flag
 //
 // 返回值：
-//   - DNSKEY RDATA
+//   - 公钥 DNSKEY RDATA
 //   - 私钥字节
 func GenerateDNSKEY(algo DNSSECAlgorithm, flag DNSKEYFlag) (DNSRDATADNSKEY, []byte) {
 	algorithmer := DNSSECAlgorithmerFactory(algo)
@@ -114,6 +126,9 @@ func GenerateRRSIG(rrSet []DNSResourceRecord, algo DNSSECAlgorithm,
 	var signature []byte
 	algorithmer := DNSSECAlgorithmerFactory(algo)
 	signature, err = algorithmer.Sign(plainText, privKey)
+	if err != nil {
+		panic(fmt.Sprintf("failed to sign RRSIG: %s", err))
+	}
 
 	// 之前的旧有实现
 	// switch algo {
@@ -137,29 +152,6 @@ func GenerateRRSIG(rrSet []DNSResourceRecord, algo DNSSECAlgorithm,
 	rrsig.Signature = signature
 
 	return rrsig
-}
-
-// ECDSAP256SHA256Sign 使用 ECDSA-P256-SHA256 算法对数据进行签名
-func ECDSAP256SHA256Sign(data, privKey []byte) ([]byte, error) {
-	// 计算明文摘要
-	digest := sha256.Sum256(data)
-
-	// 重建 ECDSA 私钥
-	curve := elliptic.P256()
-	pKey := new(ecdsa.PrivateKey)
-	pKey.PublicKey.Curve = curve
-	pKey.D = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.X, pKey.PublicKey.Y = curve.ScalarBaseMult(privKey)
-
-	// 签名
-	r, s, err := ecdsa.Sign(nil, pKey, digest[:])
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign: %s", err)
-	}
-
-	signature := append(r.Bytes(), s.Bytes()...)
-
-	return signature, nil
 }
 
 // DNSSECAlgorithmer DNSSEC 算法接口
@@ -195,26 +187,32 @@ func (RSASHA1) Sign(data, privKey []byte) ([]byte, error) {
 	digest := sha1.Sum(data)
 
 	// 重建 RSA 私钥
-	pKey := new(rsa.PrivateKey)
-	pKey.D = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.N = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.E = 3
+	pKey, err := x509.ParsePKCS1PrivateKey(privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %s", err)
+	}
 
 	// 签名
-	signature, err := rsa.SignPKCS1v15(nil, pKey, crypto.SHA1, digest[:])
+	signature, err := rsa.SignPKCS1v15(nil, pKey, crypto.SHA256, digest[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign: %s", err)
 	}
 
 	return signature, nil
 }
+
 func (RSASHA1) GenerateKey() ([]byte, []byte) {
-	privKey, err := rsa.GenerateKey(nil, 2048)
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate RSA key: %s", err))
 	}
-	privKeyBytes := privKey.D.Bytes()
-	pubKeyBytes := append(privKey.PublicKey.N.Bytes(), big.NewInt(int64(privKey.PublicKey.E)).Bytes()...)
+
+	privKeyBytes := x509.MarshalPKCS1PrivateKey(privKey)
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal public key: %s", err))
+	}
+
 	return privKeyBytes, pubKeyBytes
 }
 
@@ -225,10 +223,10 @@ func (RSASHA256) Sign(data, privKey []byte) ([]byte, error) {
 	digest := sha256.Sum256(data)
 
 	// 重建 RSA 私钥
-	pKey := new(rsa.PrivateKey)
-	pKey.D = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.N = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.E = 3
+	pKey, err := x509.ParsePKCS1PrivateKey(privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %s", err)
+	}
 
 	// 签名
 	signature, err := rsa.SignPKCS1v15(nil, pKey, crypto.SHA256, digest[:])
@@ -240,12 +238,17 @@ func (RSASHA256) Sign(data, privKey []byte) ([]byte, error) {
 }
 
 func (RSASHA256) GenerateKey() ([]byte, []byte) {
-	privKey, err := rsa.GenerateKey(nil, 2048)
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate RSA key: %s", err))
 	}
-	privKeyBytes := privKey.D.Bytes()
-	pubKeyBytes := append(privKey.PublicKey.N.Bytes(), big.NewInt(int64(privKey.PublicKey.E)).Bytes()...)
+
+	privKeyBytes := x509.MarshalPKCS1PrivateKey(privKey)
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal public key: %s", err))
+	}
+
 	return privKeyBytes, pubKeyBytes
 }
 
@@ -256,10 +259,7 @@ func (RSASHA512) Sign(data, privKey []byte) ([]byte, error) {
 	digest := sha512.Sum512(data)
 
 	// 重建 RSA 私钥
-	pKey := new(rsa.PrivateKey)
-	pKey.D = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.N = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.E = 3
+	pKey, err := x509.ParsePKCS1PrivateKey(privKey)
 
 	// 签名
 	signature, err := rsa.SignPKCS1v15(nil, pKey, crypto.SHA512, digest[:])
@@ -271,12 +271,17 @@ func (RSASHA512) Sign(data, privKey []byte) ([]byte, error) {
 }
 
 func (RSASHA512) GenerateKey() ([]byte, []byte) {
-	privKey, err := rsa.GenerateKey(nil, 2048)
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate RSA key: %s", err))
 	}
-	privKeyBytes := privKey.D.Bytes()
-	pubKeyBytes := append(privKey.PublicKey.N.Bytes(), big.NewInt(int64(privKey.PublicKey.E)).Bytes()...)
+
+	privKeyBytes := x509.MarshalPKCS1PrivateKey(privKey)
+	pubKeyBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal public key: %s", err))
+	}
+
 	return privKeyBytes, pubKeyBytes
 }
 
@@ -294,7 +299,7 @@ func (ECDSAP256SHA256) Sign(data, privKey []byte) ([]byte, error) {
 	pKey.PublicKey.X, pKey.PublicKey.Y = curve.ScalarBaseMult(privKey)
 
 	// 签名
-	r, s, err := ecdsa.Sign(nil, pKey, digest[:])
+	r, s, err := ecdsa.Sign(rand.Reader, pKey, digest[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign: %s", err)
 	}
@@ -305,7 +310,7 @@ func (ECDSAP256SHA256) Sign(data, privKey []byte) ([]byte, error) {
 }
 
 func (ECDSAP256SHA256) GenerateKey() ([]byte, []byte) {
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), nil)
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate ECDSA key: %s", err))
 	}
@@ -328,7 +333,7 @@ func (ECDSAP384SHA384) Sign(data, privKey []byte) ([]byte, error) {
 	pKey.PublicKey.X, pKey.PublicKey.Y = curve.ScalarBaseMult(privKey)
 
 	// 签名
-	r, s, err := ecdsa.Sign(nil, pKey, digest[:])
+	r, s, err := ecdsa.Sign(rand.Reader, pKey, digest[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign: %s", err)
 	}
@@ -339,7 +344,7 @@ func (ECDSAP384SHA384) Sign(data, privKey []byte) ([]byte, error) {
 }
 
 func (ECDSAP384SHA384) GenerateKey() ([]byte, []byte) {
-	privKey, err := ecdsa.GenerateKey(elliptic.P384(), nil)
+	privKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	if err != nil {
 		panic(fmt.Sprintf("failed to generate ECDSA key: %s", err))
 	}
