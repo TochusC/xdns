@@ -30,18 +30,68 @@ func GenWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) 
 	}
 
 	rTag := dns.CalculateKeyTag(pKey)
+	dif := tag - int(rTag)
 
-	if rTag != uint16(tag) {
-		dif := tag - int(rTag)
+	fmt.Printf("rTag:%d, tTag:%d, dif: %d\n", rTag, tag, dif)
+
+	if dif < 0 {
+		dif = -dif
 		hDif := dif >> 8
 		lDif := dif & 0xFF
-		pubKey[0] += byte(hDif)
-		pubKey[1] += byte(lDif)
+
+		for tvlr, _ := range pubKey {
+			if tvlr&1 == 0 {
+				if int(pubKey[tvlr])-int(hDif) < 0 {
+					pubKey[tvlr] = 0
+					hDif -= int(pubKey[tvlr])
+				} else {
+					pubKey[tvlr] -= byte(hDif)
+					hDif = 0
+				}
+			} else {
+				if int(pubKey[tvlr])-int(hDif) < 0 {
+					pubKey[tvlr] = 0
+					lDif -= int(pubKey[tvlr])
+				} else {
+					pubKey[tvlr] -= byte(lDif)
+					lDif = 0
+				}
+			}
+			if hDif == 0 && lDif == 0 {
+				break
+			}
+		}
+	} else {
+		hDif := dif >> 8
+		lDif := dif & 0xFF
+
+		for tvlr, _ := range pubKey {
+			if tvlr&1 == 0 {
+				if int(pubKey[tvlr])+int(hDif) > 0xFF {
+					pubKey[tvlr] = 0xFF
+					hDif -= int(0xFF) - int(pubKey[tvlr])
+				} else {
+					pubKey[tvlr] += byte(hDif)
+					hDif = 0
+				}
+			} else {
+				if int(pubKey[tvlr])+int(lDif) > 0xFF {
+					pubKey[tvlr] = 0xFF
+					lDif -= int(0xFF) - int(pubKey[tvlr])
+				} else {
+					pubKey[tvlr] += byte(lDif)
+					lDif = 0
+				}
+			}
+			if hDif == 0 && lDif == 0 {
+				break
+			}
+		}
 	}
 
-	rTag = dns.CalculateKeyTag(pKey)
+	// 重新计算 Key Tag, 算法不能保证成功
 	if rTag != uint16(tag) {
-		panic("GenWrongKeyWithTag() failed")
+		return GenWrongKeyWithTag(algo, flag, tag)
 	}
 
 	return pKey
@@ -90,9 +140,9 @@ func GenRandomRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	expiration, inception uint32, keyTag uint16, signerName string) dns.DNSRDATARRSIG {
 
 	algorithmer := dns.DNSSECAlgorithmerFactory(algo)
-	_, privKey := algorithmer.GenerateKey()
+	privKey, _ := algorithmer.GenerateKey()
 	rText := []byte("random plaintext")
-	sig, err := algorithmer.Sign(privKey, rText)
+	sig, err := algorithmer.Sign(rText, privKey)
 	if err != nil {
 		panic(fmt.Sprintf("function GenRandomRRSIG() failed:\n%s", err))
 	}
@@ -103,9 +153,9 @@ func GenRandomRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	}
 
 	return dns.DNSRDATARRSIG{
-		TypeCovered: dns.DNSRRTypeA,
+		TypeCovered: rrSet[0].Type,
 		Algorithm:   algo,
-		Labels:      1,
+		Labels:      uint8(dns.CountDomainNameLabels(&rrSet[0].Name)),
 		OriginalTTL: 3600,
 		Expiration:  expiration,
 		Inception:   inception,
