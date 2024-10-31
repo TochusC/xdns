@@ -47,7 +47,7 @@ func CalculateKeyTag(key DNSRDATADNSKEY) uint16 {
 	return uint16(ac & 0xFFFF)
 }
 
-// GenerateDNSKEY 生成 DNSKEY RDATA, 并返回私钥字节
+// GenerateDNSKEY 生成公钥的 DNSKEY RDATA, 并返回私钥字节
 // 传入参数：
 //   - algo: DNSSEC 算法
 //   - flag: DNSKEY Flag
@@ -67,6 +67,8 @@ func GenerateDNSKEY(algo DNSSECAlgorithm, flag DNSKEYFlag) (DNSRDATADNSKEY, []by
 }
 
 // GenerateRRSIG 生成 RRSIG RDATA，
+// 该函数目前无法将传入的 RRSET 进行 规范化 及 规范化排序，
+// 所以需要外部保证传入的 RRSET 是规范的，才可以成功生成正确的 RRSIG。
 // 传入参数：
 //   - rrSet: 要签名的 RR 集合
 //   - algo: 签名算法
