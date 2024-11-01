@@ -135,7 +135,8 @@ func (d StatefulResponser) InitResp(qInfo QueryInfo) ResponseInfo {
 }
 
 // DNSSECResponser 是一个实现了 DNSSEC 的 Responser 实现。
-// 它默认会回复指向服务器的A记录，并自动为其生成签名。
+// 它默认会回复指向服务器的A记录，并自动为子区域生成对应的
+// DNSKEY, RRSIG, DS等相关记录。
 // 可以根据需求在这里实现 DNSSEC 的相关逻辑。
 // 也可以在此基础上实现更复杂的逻辑。
 type DNSSECResponser struct {
@@ -143,10 +144,17 @@ type DNSSECResponser struct {
 	ServerConf DNSServerConfig
 	// 默认回复
 	DefaultResp ResponseInfo
-	ZoneName    string
-	// DNSSEC 加密材料
-	DNSSECMaterial DNSSECMaterial
+	DNSSECConf  DNSSECConfig
+	// 区域名与其相应 DNSSEC 材料的映射
+	// 在初始化DNSSEC Responser 时很可能需要为其手动添加信任锚点
+	DNSSECMap map[string]DNSSECMaterial
 }
+
+type DNSSECConfig struct {
+	dAlgo dns.DNSSECAlgorithm
+	dType dns.DNSSECDigestType
+}
+
 type DNSSECMaterial struct {
 	KSKTag        int
 	ZSKTag        int
@@ -155,17 +163,119 @@ type DNSSECMaterial struct {
 	DNSKEYRespSec []dns.DNSResourceRecord
 }
 
+func (d DNSSECResponser) CreateDNSSECMat(zoneName string) DNSSECMaterial {
+	pubKskRDATA, privKskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagSecureEntryPoint)
+	pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagZoneKey)
+	pubZskRR := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeDNSKEY,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(pubZskRDATA.Size()),
+		RData: &pubZskRDATA,
+	}
+	pubKskRR := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeDNSKEY,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(pubKskRDATA.Size()),
+		RData: &pubKskRDATA,
+	}
+
+	// 生成密钥集签名
+	keySetSig := dns.GenerateRRSIG(
+		[]dns.DNSResourceRecord{
+			pubZskRR,
+			pubKskRR,
+		},
+		d.DNSSECConf.dAlgo,
+		uint32(time.Now().UTC().Unix()+86400-3600),
+		uint32(time.Now().UTC().Unix()-3600),
+		uint16(dns.CalculateKeyTag(pubKskRDATA)),
+		zoneName,
+		privKskBytes,
+	)
+	sigRec := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeRRSIG,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(keySetSig.Size()),
+		RData: &keySetSig,
+	}
+	// 生成 DNSSEC 材料
+	anSec := []dns.DNSResourceRecord{
+		pubZskRR,
+		pubKskRR,
+		sigRec,
+	}
+	return DNSSECMaterial{
+		KSKTag:        int(dns.CalculateKeyTag(pubKskRDATA)),
+		ZSKTag:        int(dns.CalculateKeyTag(pubZskRDATA)),
+		PrivateKSK:    privKskBytes,
+		PrivateZSK:    privZskBytes,
+		DNSKEYRespSec: anSec,
+	}
+}
+
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
 func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := d.InitResp(qInfo)
 
+	// 提取查询类型和查询名称
 	qType := qInfo.DNS.Question[0].Type
+	qName := qInfo.DNS.Question[0].Name
+
 	if qType == dns.DNSRRTypeDNSKEY {
-		rInfo.DNS.Answer = d.DNSSECMaterial.DNSKEYRespSec
+		// 如果查询类型为 DNSKEY，则返回相应的 DNSKEY 记录
+		dnssecMat, ok := d.DNSSECMap[qName]
+		if !ok {
+			d.DNSSECMap[qName] = d.CreateDNSSECMat(qName)
+			dnssecMat = d.DNSSECMap[qName]
+		}
+		rInfo.DNS.Answer = dnssecMat.DNSKEYRespSec
 		rInfo.DNS.Header.ANCount = uint16(len(rInfo.DNS.Answer))
 		rInfo.DNS.Header.RCode = dns.DNSResponseCodeNoErr
+	} else if qType == dns.DNSRRTypeDS {
+		// 如果查询类型为 DS，则生成 DS 记录并返回
+		ds := dns.GenerateDS(
+			qName,
+			*d.DNSSECMap[qName].DNSKEYRespSec[1].RData.(*dns.DNSRDATADNSKEY),
+			d.DNSSECConf.dType,
+		)
+		qSignerName := dns.GetUpperDomainName(&qName)
+		rec := dns.DNSResourceRecord{
+			Name:  qName,
+			Type:  dns.DNSRRTypeDS,
+			Class: dns.DNSClassIN,
+			TTL:   86400,
+			RDLen: uint16(ds.Size()),
+			RData: &ds,
+		}
+		dnssecMat := d.DNSSECMap[qSignerName]
+		sig := dns.GenerateRRSIG(
+			[]dns.DNSResourceRecord{rec},
+			d.DNSSECConf.dAlgo,
+			uint32(time.Now().UTC().Unix()+86400-3600),
+			uint32(time.Now().UTC().Unix()-3600),
+			uint16(dnssecMat.ZSKTag),
+			qSignerName,
+			dnssecMat.PrivateZSK,
+		)
+		sigRec := dns.DNSResourceRecord{
+			Name:  qName,
+			Type:  dns.DNSRRTypeRRSIG,
+			Class: dns.DNSClassIN,
+			TTL:   86400,
+			RDLen: uint16(sig.Size()),
+			RData: &sig,
+		}
+		rInfo.DNS.Answer = []dns.DNSResourceRecord{rec, sigRec}
+		rInfo.DNS.Header.ANCount = 2
+		rInfo.DNS.Header.RCode = dns.DNSResponseCodeNoErr
 	} else {
-		qName := qInfo.DNS.Question[0].Name
+		// 默认回复
 		rec := dns.DNSResourceRecord{
 			Name:  qName,
 			Type:  dns.DNSRRTypeA,
@@ -174,14 +284,24 @@ func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 			RDLen: 0,
 			RData: &dns.DNSRDATAA{Address: d.ServerConf.IP},
 		}
+		qSignerName := dns.GetUpperDomainName(&qName)
+		if qSignerName == "." {
+			// 说明qName为我们掌控的TLD, 应通过在解析侧配置的信任锚点来验证。
+			qSignerName = qName
+		}
+		dnssecMat, ok := d.DNSSECMap[qSignerName]
+		if !ok {
+			d.DNSSECMap[qSignerName] = d.CreateDNSSECMat(qSignerName)
+			dnssecMat = d.DNSSECMap[qSignerName]
+		}
 		sig := dns.GenerateRRSIG(
 			[]dns.DNSResourceRecord{rec},
-			dns.DNSSECAlgorithmECDSAP384SHA384,
+			d.DNSSECConf.dAlgo,
 			uint32(time.Now().UTC().Unix()+86400-3600),
 			uint32(time.Now().UTC().Unix()-3600),
-			uint16(d.DNSSECMaterial.ZSKTag),
-			d.ZoneName,
-			d.DNSSECMaterial.PrivateZSK,
+			uint16(dnssecMat.ZSKTag),
+			qSignerName,
+			dnssecMat.PrivateZSK,
 		)
 		sigRec := dns.DNSResourceRecord{
 			Name:  qName,
@@ -218,27 +338,21 @@ func (d DNSSECResponser) InitResp(qInfo QueryInfo) ResponseInfo {
 
 // [DNSSEC Responser 使用范例]
 // // 设置 DNS 服务器配置
-// var conf = godns.DNSServerConfig{
-// 	IP:            net.IPv4(10, 10, 3, 3),
-// 	Port:          53,
-// 	NetworkDevice: "eth0",
-// 	MTU:           1500,
-// 	MAC:           net.HardwareAddr{0x02, 0x42, 0x0a, 0x0a, 0x03, 0x03},
-// }
-// // 生成 KSK 和 ZSK
+// var conf = godns.DNSServerConfig{...}
+// // 设置DNSSEC配置
+// var dConf = DNSSECConfig{...}
+//
 // // 使用ParseKeyBase64解析预先生成的公钥，
 // // 该公钥应确保能够被解析器通过 信任锚点（Trust Anchor）建立的 信任链（Chain of Trust） 所验证。
-// pubKskBytes := dns.ParseKeyBase64("MzJsFTtAo0j8qGpDIhEMnK4ImTyYwMwDPU5gt/FaXd6TOw6AvZDAj2hlhZvaxMXV6xCw1MU5iPv5ZQrb3NDLUU+TW07imJ5GD9YKi0Qiiypo+zhtL4aGaOG+870yHwuY")
-// privKskBytes := dns.ParseKeyBase64("ppaXHmb7u1jOxEzrLzuGKzbjmSLIK4gEhQOvws+cpBQyJbCwIM1Nrk4j5k94CP9e")
+// pubKskBytes := dns.ParseKeyBase64("Base64 Encoded PublicKey")
+// privKskBytes := dns.ParseKeyBase64("Base64 Encoded PrivateKey")
 //
 // pubKskRDATA := dns.DNSRDATADNSKEY{
 // 	Flags:     dns.DNSKEYFlagSecureEntryPoint,
 // 	Protocol:  dns.DNSKEYProtocolValue,
-// 	Algorithm: dns.DNSSECAlgorithmECDSAP384SHA384,
+// 	Algorithm: dConf.dAlgo,
 // 	PublicKey: pubKskBytes,
 // }
-// // 也可以使用 GenerateDNSKEY 生成KSK，
-// // 但随机生成的KSK无法保证解析器拥有能与该KSK匹配的 信任锚点。
 // // pubKskRDATA, privKskBytes := dns.GenerateDNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagSecureEntryPoint)
 //
 // pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagZoneKey)
@@ -248,55 +362,35 @@ func (d DNSSECResponser) InitResp(qInfo QueryInfo) ResponseInfo {
 // 	Class: dns.DNSClassIN,
 // 	TTL:   86400,
 // 	RDLen: uint16(pubZskRDATA.Size()),
-// 	RData: &pubZskRDATA,
+// 	RData: pubZskRDATA,
 // }
-// pubKskRR := dns.DNSResourceRecord{
-// 	Name:  "test.",
-// 	Type:  dns.DNSRRTypeDNSKEY,
-// 	Class: dns.DNSClassIN,
-// 	TTL:   86400,
-// 	RDLen: uint16(pubKskRDATA.Size()),
-// 	RData: &pubKskRDATA,
-// }
-//
+// pubKskRR := dns.DNSResourceRecord{...}
 // // 生成密钥集签名
 // keySetSig := dns.GenerateRRSIG(
 // 	[]dns.DNSResourceRecord{
 // 		pubZskRR,
 // 		pubKskRR,
 // 	},
-// 	dns.DNSSECAlgorithmECDSAP384SHA384,
+// 	dConf.dAlgo,
 // 	uint32(time.Now().UTC().Unix()+86400-3600),
 // 	uint32(time.Now().UTC().Unix()-3600),
 // 	uint16(dns.CalculateKeyTag(pubKskRDATA)),
 // 	"test.",
 // 	privKskBytes,
 // )
-// sigRec := dns.DNSResourceRecord{
-// 	Name:  "test.",
-// 	Type:  dns.DNSRRTypeRRSIG,
-// 	Class: dns.DNSClassIN,
-// 	TTL:   86400,
-// 	RDLen: uint16(keySetSig.Size()),
-// 	RData: &keySetSig,
-// }
+// sigRec := dns.DNSResourceRecord{...}
 // // 生成 DNSSEC 材料
 // anSec := []dns.DNSResourceRecord{
-// 	pubKskRR,
 // 	pubZskRR,
+// 	pubKskRR,
 // 	sigRec,
 // }
-//
+
 // // 创建一个 DNS 服务器
 // server := godns.GoDNSSever{
 // 	ServerConfig: conf,
 // 	Sniffer: []*godns.Sniffer{
-// 		godns.NewSniffer(godns.SnifferConfig{
-// 			Device:   conf.NetworkDevice,
-// 			Port:     conf.Port,
-// 			PktMax:   65535,
-// 			Protocol: godns.ProtocolUDP,
-// 		}),
+// 		godns.NewSniffer(godns.SnifferConfig{...}),
 // 	},
 // 	Handler: godns.NewHandler(conf,
 // 		&DNSSECResponser{
@@ -328,17 +422,19 @@ func (d DNSSECResponser) InitResp(qInfo QueryInfo) ResponseInfo {
 // 					Additional: []dns.DNSResourceRecord{},
 // 				},
 // 			},
-// 			ZoneName: "test",
-// 			DNSSECMaterial: DNSSECMaterial{
-// 				KSKTag:        int(dns.CalculateKeyTag(pubKskRDATA)),
-// 				ZSKTag:        int(dns.CalculateKeyTag(pubZskRDATA)),
-// 				PrivateKSK:    privKskBytes,
-// 				PrivateZSK:    privZskBytes,
-// 				DNSKEYRespSec: anSec,
+// 			DNSSECConf: dConf,
+// 			DNSSECMap: map[string]DNSSECMaterial{
+// 				// 信任锚点
+// 				"test": DNSSECMaterial{
+// 					KSKTag:        int(dns.CalculateKeyTag(pubKskRDATA)),
+// 					ZSKTag:        int(dns.CalculateKeyTag(pubZskRDATA)),
+// 					PrivateKSK:    privKskBytes,
+// 					PrivateZSK:    privZskBytes,
+// 					DNSKEYRespSec: anSec,
+// 				},
 // 			},
 // 		},
 // 	),
 // }
-//
 // // 启动 DNS 服务器
 // server.Start()

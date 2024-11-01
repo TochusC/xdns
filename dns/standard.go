@@ -29,6 +29,7 @@ package dns
 
 import (
 	"fmt"
+	"strings"
 )
 
 // GetDomainNameWireLen 返回域名的 编码格式长度。
@@ -46,6 +47,27 @@ func GetDomainNameWireLen(name *string) int {
 		return nameLength + 1
 	}
 	return nameLength + 2
+}
+
+// GetUpperDomainName 返回域名的上级域名。
+//   - 其接收参数为 域名字符串 的指针，
+//   - 返回值为域名的上级域名。
+//
+// 如果传入域名为根域名(TLD)，则返回根域名本身。
+func GetUpperDomainName(name *string) string {
+	if (*name)[0] == '.' {
+		return *name
+	}
+	return (*name)[strings.Index(*name, ".")+1:]
+}
+
+// SplitDomainName 分割域名，其接受域名字符串，并返回分割后的字符串切片。
+// 若域名为根域名，则返回长度为0的字符串切片。
+func SplitDomainName(name *string) []string {
+	if (*name)[0] == '.' {
+		return []string{}
+	}
+	return strings.Split(*name, ".")
 }
 
 // EncodeDomainName 编码域名，其接受字符串，并返回编码后的字节切片。

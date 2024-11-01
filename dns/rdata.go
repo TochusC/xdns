@@ -77,15 +77,15 @@ type DNSRRRDATA interface {
 func DNSRRRDATAFactory(rtype DNSType) DNSRRRDATA {
 	switch rtype {
 	case DNSRRTypeA:
-		return &DNSRDATAA{}
+		return DNSRDATAA{}
 	case DNSRRTypeNS:
-		return &DNSRDATANS{}
+		return DNSRDATANS{}
 	case DNSRRTypeCNAME:
-		return &DNSRDATACNAME{}
+		return DNSRDATACNAME{}
 	case DNSRRTypeTXT:
-		return &DNSRDATATXT{}
+		return DNSRDATATXT{}
 	default:
-		return &DNSRDATAUnknown{
+		return DNSRDATAUnknown{
 			RRType: rtype,
 			RData:  nil,
 		}
@@ -100,26 +100,26 @@ type DNSRDATAUnknown struct {
 	RData  []byte
 }
 
-func (rdata *DNSRDATAUnknown) Type() DNSType {
+func (rdata DNSRDATAUnknown) Type() DNSType {
 	return rdata.RRType
 }
 
-func (rdata *DNSRDATAUnknown) Size() int {
+func (rdata DNSRDATAUnknown) Size() int {
 	return len(rdata.RData)
 }
 
-func (rdata *DNSRDATAUnknown) String() string {
+func (rdata DNSRDATAUnknown) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"Unknown RDATA: ", rdata.RData,
 	)
 }
 
-func (rdata *DNSRDATAUnknown) Encode() []byte {
+func (rdata DNSRDATAUnknown) Encode() []byte {
 	return rdata.RData
 }
 
-func (rdata *DNSRDATAUnknown) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATAUnknown) Equal(rr DNSRRRDATA) bool {
 	rru, ok := rr.(*DNSRDATAUnknown)
 	if !ok {
 		return false
@@ -127,7 +127,7 @@ func (rdata *DNSRDATAUnknown) Equal(rr DNSRRRDATA) bool {
 	return rdata.RRType == rru.RRType && bytes.Equal(rdata.RData, rru.RData)
 }
 
-func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than Unknown RDATA size %d", len(buffer), rdata.Size())
 	}
@@ -135,7 +135,7 @@ func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdata.Size(), nil
 }
 
-func (rdata *DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	if len(buffer) < offset+rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than offset %d + Unknown RDATA size %d", len(buffer), offset, rdata.Size())
 	}
@@ -157,22 +157,22 @@ type DNSRDATAA struct {
 	Address net.IP
 }
 
-func (rdata *DNSRDATAA) Type() DNSType {
+func (rdata DNSRDATAA) Type() DNSType {
 	return DNSRRTypeA
 }
 
-func (rdata *DNSRDATAA) Size() int {
+func (rdata DNSRDATAA) Size() int {
 	return net.IPv4len
 }
 
-func (rdata *DNSRDATAA) String() string {
+func (rdata DNSRDATAA) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"Address: ", rdata.Address.String(),
 	)
 }
 
-func (rdata *DNSRDATAA) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATAA) Equal(rr DNSRRRDATA) bool {
 	rra, ok := rr.(*DNSRDATAA)
 	if !ok {
 		return false
@@ -180,7 +180,7 @@ func (rdata *DNSRDATAA) Equal(rr DNSRRRDATA) bool {
 	return rdata.Address.Equal(rra.Address)
 }
 
-func (rdata *DNSRDATAA) Encode() []byte {
+func (rdata DNSRDATAA) Encode() []byte {
 	return rdata.Address.To4()
 }
 
@@ -189,7 +189,7 @@ func (rdata *DNSRDATAA) Encode() []byte {
 //   - 返回值为 写入的字节数 和 错误信息。
 //
 // 如果缓冲区长度不足，返回 -1 和错误信息。
-func (rdata *DNSRDATAA) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATAA) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than A RDATA size %d", len(buffer), rdata.Size())
 	}
@@ -202,7 +202,7 @@ func (rdata *DNSRDATAA) EncodeToBuffer(buffer []byte) (int, error) {
 //   - 返回值为 解码后的偏移量 和 错误信息。
 //
 // 如果出现错误，返回 -1, 及 相应报错 。
-func (rdata *DNSRDATAA) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATAA) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	if len(buffer) < offset+rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than offset %d + A RDATA size %d", len(buffer), offset, rdata.Size())
 	}
@@ -224,22 +224,22 @@ type DNSRDATANS struct {
 	NSDNAME string
 }
 
-func (rdata *DNSRDATANS) Type() DNSType {
+func (rdata DNSRDATANS) Type() DNSType {
 	return DNSRRTypeNS
 }
 
-func (rdata *DNSRDATANS) Size() int {
+func (rdata DNSRDATANS) Size() int {
 	return GetDomainNameWireLen(&rdata.NSDNAME)
 }
 
-func (rdata *DNSRDATANS) String() string {
+func (rdata DNSRDATANS) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"NS: ", rdata.NSDNAME,
 	)
 }
 
-func (rdata *DNSRDATANS) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATANS) Equal(rr DNSRRRDATA) bool {
 	rrns, ok := rr.(*DNSRDATANS)
 	if !ok {
 		return false
@@ -247,7 +247,7 @@ func (rdata *DNSRDATANS) Equal(rr DNSRRRDATA) bool {
 	return rdata.NSDNAME == rrns.NSDNAME
 }
 
-func (rdata *DNSRDATANS) Encode() []byte {
+func (rdata DNSRDATANS) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	_, err := EncodeDomainNameToBuffer(&rdata.NSDNAME, bytesArray)
 	if err != nil {
@@ -257,7 +257,7 @@ func (rdata *DNSRDATANS) Encode() []byte {
 	return bytesArray
 }
 
-func (rdata *DNSRDATANS) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATANS) EncodeToBuffer(buffer []byte) (int, error) {
 	rdataSize, err := EncodeDomainNameToBuffer(&rdata.NSDNAME, buffer)
 	if err != nil {
 		return -1, err
@@ -265,7 +265,7 @@ func (rdata *DNSRDATANS) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdataSize, nil
 }
 
-func (rdata *DNSRDATANS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATANS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	var err error
 	rdata.NSDNAME, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
 	if err != nil {
@@ -289,22 +289,22 @@ type DNSRDATACNAME struct {
 	CNAME string
 }
 
-func (rdata *DNSRDATACNAME) Type() DNSType {
+func (rdata DNSRDATACNAME) Type() DNSType {
 	return DNSRRTypeCNAME
 }
 
-func (rdata *DNSRDATACNAME) Size() int {
+func (rdata DNSRDATACNAME) Size() int {
 	return GetDomainNameWireLen(&rdata.CNAME)
 }
 
-func (rdata *DNSRDATACNAME) String() string {
+func (rdata DNSRDATACNAME) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"CNAME: ", rdata.CNAME,
 	)
 }
 
-func (rdata *DNSRDATACNAME) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATACNAME) Equal(rr DNSRRRDATA) bool {
 	rrcname, ok := rr.(*DNSRDATACNAME)
 	if !ok {
 		return false
@@ -312,11 +312,11 @@ func (rdata *DNSRDATACNAME) Equal(rr DNSRRRDATA) bool {
 	return rdata.CNAME == rrcname.CNAME
 }
 
-func (rdata *DNSRDATACNAME) Encode() []byte {
+func (rdata DNSRDATACNAME) Encode() []byte {
 	return EncodeDomainName(&rdata.CNAME)
 }
 
-func (rdata *DNSRDATACNAME) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATACNAME) EncodeToBuffer(buffer []byte) (int, error) {
 	len, err := EncodeDomainNameToBuffer(&rdata.CNAME, buffer)
 	if err != nil {
 		return -1, err
@@ -324,7 +324,7 @@ func (rdata *DNSRDATACNAME) EncodeToBuffer(buffer []byte) (int, error) {
 	return len, nil
 }
 
-func (rdata *DNSRDATACNAME) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATACNAME) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	var err error
 	rdata.CNAME, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
 	if err != nil {
@@ -352,22 +352,22 @@ type DNSRDATATXT struct {
 	TXT string
 }
 
-func (rdata *DNSRDATATXT) Type() DNSType {
+func (rdata DNSRDATATXT) Type() DNSType {
 	return DNSRRTypeTXT
 }
 
-func (rdata *DNSRDATATXT) Size() int {
+func (rdata DNSRDATATXT) Size() int {
 	return GetCharacterStrWireLen(&rdata.TXT)
 }
 
-func (rdata *DNSRDATATXT) String() string {
+func (rdata DNSRDATATXT) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"TXT: ", rdata.TXT,
 	)
 }
 
-func (rdata *DNSRDATATXT) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATATXT) Equal(rr DNSRRRDATA) bool {
 	rrtxt, ok := rr.(*DNSRDATATXT)
 	if !ok {
 		return false
@@ -375,15 +375,15 @@ func (rdata *DNSRDATATXT) Equal(rr DNSRRRDATA) bool {
 	return rdata.TXT == rrtxt.TXT
 }
 
-func (rTXT *DNSRDATATXT) Encode() []byte {
-	return EncodeCharacterStr(&rTXT.TXT)
+func (rdata DNSRDATATXT) Encode() []byte {
+	return EncodeCharacterStr(&rdata.TXT)
 }
 
-func (rdata *DNSRDATATXT) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATATXT) EncodeToBuffer(buffer []byte) (int, error) {
 	return EncodeCharacterStrToBuffer(&rdata.TXT, buffer)
 }
 
-func (rdata *DNSRDATATXT) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATATXT) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	rdEnd := offset + rdLen
 	if len(buffer) < rdEnd {
 		return -1, fmt.Errorf("method DNSRDATATXT DecodeFromBuffer failed: buffer length %d is less than offset %d + TXT RDATA size %d", len(buffer), offset, rdata.Size())
@@ -437,15 +437,15 @@ type DNSRDATARRSIG struct {
 	Signature                          []byte
 }
 
-func (rdata *DNSRDATARRSIG) Type() DNSType {
+func (rdata DNSRDATARRSIG) Type() DNSType {
 	return DNSRRTypeRRSIG
 }
 
-func (rdata *DNSRDATARRSIG) Size() int {
+func (rdata DNSRDATARRSIG) Size() int {
 	return 18 + GetDomainNameWireLen(&rdata.SignerName) + len(rdata.Signature)
 }
 
-func (rdata *DNSRDATARRSIG) String() string {
+func (rdata DNSRDATARRSIG) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"Type Covered: ", rdata.TypeCovered,
@@ -460,7 +460,7 @@ func (rdata *DNSRDATARRSIG) String() string {
 	)
 }
 
-func (rdata *DNSRDATARRSIG) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATARRSIG) Equal(rr DNSRRRDATA) bool {
 	rrsig, ok := rr.(*DNSRDATARRSIG)
 	if !ok {
 		return false
@@ -476,7 +476,7 @@ func (rdata *DNSRDATARRSIG) Equal(rr DNSRRRDATA) bool {
 		bytes.Equal(rdata.Signature, rrsig.Signature)
 }
 
-func (rdata *DNSRDATARRSIG) Encode() []byte {
+func (rdata DNSRDATARRSIG) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	binary.BigEndian.PutUint16(bytesArray, uint16(rdata.TypeCovered))
 	bytesArray[2] = byte(rdata.Algorithm)
@@ -490,7 +490,7 @@ func (rdata *DNSRDATARRSIG) Encode() []byte {
 	return bytesArray
 }
 
-func (rdata *DNSRDATARRSIG) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATARRSIG) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than RRSIG RDATA size %d", len(buffer), rdata.Size())
 	}
@@ -509,7 +509,7 @@ func (rdata *DNSRDATARRSIG) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdata.Size(), nil
 }
 
-func (rdata *DNSRDATARRSIG) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATARRSIG) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	if rdLen < 18 {
 		return -1, fmt.Errorf("method DNSRDATARRSIG DecodeFromBuffer failed: RRSIG RDATA size %d is less than 18", rdLen)
 	}
@@ -560,15 +560,15 @@ type DNSRDATADNSKEY struct {
 	PublicKey []byte
 }
 
-func (rdata *DNSRDATADNSKEY) Type() DNSType {
+func (rdata DNSRDATADNSKEY) Type() DNSType {
 	return DNSRRTypeDNSKEY
 }
 
-func (rdata *DNSRDATADNSKEY) Size() int {
+func (rdata DNSRDATADNSKEY) Size() int {
 	return 4 + len(rdata.PublicKey)
 }
 
-func (rdata *DNSRDATADNSKEY) String() string {
+func (rdata DNSRDATADNSKEY) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"Flags: ", rdata.Flags,
@@ -578,7 +578,7 @@ func (rdata *DNSRDATADNSKEY) String() string {
 	)
 }
 
-func (rdata *DNSRDATADNSKEY) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATADNSKEY) Equal(rr DNSRRRDATA) bool {
 	rrkey, ok := rr.(*DNSRDATADNSKEY)
 	if !ok {
 		return false
@@ -589,7 +589,7 @@ func (rdata *DNSRDATADNSKEY) Equal(rr DNSRRRDATA) bool {
 		bytes.Equal(rdata.PublicKey, rrkey.PublicKey)
 }
 
-func (rdata *DNSRDATADNSKEY) Encode() []byte {
+func (rdata DNSRDATADNSKEY) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	binary.BigEndian.PutUint16(bytesArray, uint16(rdata.Flags))
 	bytesArray[2] = uint8(rdata.Protocol)
@@ -598,7 +598,7 @@ func (rdata *DNSRDATADNSKEY) Encode() []byte {
 	return bytesArray
 }
 
-func (rdata *DNSRDATADNSKEY) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATADNSKEY) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than DNSKEY RDATA size %d", len(buffer), rdata.Size())
 	}
@@ -609,7 +609,7 @@ func (rdata *DNSRDATADNSKEY) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdata.Size(), nil
 }
 
-func (rdata *DNSRDATADNSKEY) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATADNSKEY) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	rdEnd := offset + rdLen
 	if rdLen < 4 {
 		return -1, fmt.Errorf("method DNSRDATADNSKEY DecodeFromBuffer failed: DNSKEY RDATA size %d is less than 4", rdLen)
@@ -645,15 +645,15 @@ type DNSRDATANSEC struct {
 	TypeBitMaps    []byte
 }
 
-func (rdata *DNSRDATANSEC) Type() DNSType {
+func (rdata DNSRDATANSEC) Type() DNSType {
 	return DNSRRTypeNSEC
 }
 
-func (rdata *DNSRDATANSEC) Size() int {
+func (rdata DNSRDATANSEC) Size() int {
 	return GetDomainNameWireLen(&rdata.NextDomainName) + len(rdata.TypeBitMaps)
 }
 
-func (rdata *DNSRDATANSEC) String() string {
+func (rdata DNSRDATANSEC) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"Next Domain Name: ", rdata.NextDomainName,
@@ -661,7 +661,7 @@ func (rdata *DNSRDATANSEC) String() string {
 	)
 }
 
-func (rdata *DNSRDATANSEC) Equal(rr DNSRRRDATA) bool {
+func (rdata DNSRDATANSEC) Equal(rr DNSRRRDATA) bool {
 	rrnsec, ok := rr.(*DNSRDATANSEC)
 	if !ok {
 		return false
@@ -670,14 +670,14 @@ func (rdata *DNSRDATANSEC) Equal(rr DNSRRRDATA) bool {
 		bytes.Equal(rdata.TypeBitMaps, rrnsec.TypeBitMaps)
 }
 
-func (rdata *DNSRDATANSEC) Encode() []byte {
+func (rdata DNSRDATANSEC) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	offset, _ := EncodeDomainNameToBuffer(&rdata.NextDomainName, bytesArray)
 	copy(bytesArray[offset:], rdata.TypeBitMaps)
 	return bytesArray
 }
 
-func (rdata *DNSRDATANSEC) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATANSEC) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than NSEC RDATA size %d", len(buffer), rdata.Size())
 	}
@@ -689,7 +689,7 @@ func (rdata *DNSRDATANSEC) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdata.Size(), nil
 }
 
-func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	var err error
 	var rdEnd = offset + rdLen
 	if len(buffer) < rdEnd {
@@ -730,15 +730,15 @@ type DNSRDATADS struct {
 	Digest     []byte
 }
 
-func (rdata *DNSRDATADS) Type() DNSType {
+func (rdata DNSRDATADS) Type() DNSType {
 	return DNSRRTypeDS
 }
 
-func (rdata *DNSRDATADS) Size() int {
+func (rdata DNSRDATADS) Size() int {
 	return 4 + len(rdata.Digest)
 }
 
-func (rdata *DNSRDATADS) String() string {
+func (rdata DNSRDATADS) String() string {
 	return fmt.Sprint(
 		"### RDATA Section ###\n",
 		"Key Tag: ", rdata.KeyTag,
@@ -748,8 +748,8 @@ func (rdata *DNSRDATADS) String() string {
 	)
 }
 
-func (rdata *DNSRDATADS) Equal(rr DNSRRRDATA) bool {
-	rrds, ok := rr.(*DNSRDATADS)
+func (rdata DNSRDATADS) Equal(rr DNSRRRDATA) bool {
+	rrds, ok := rr.(DNSRDATADS)
 	if !ok {
 		return false
 	}
@@ -759,7 +759,7 @@ func (rdata *DNSRDATADS) Equal(rr DNSRRRDATA) bool {
 		bytes.Equal(rdata.Digest, rrds.Digest)
 }
 
-func (rdata *DNSRDATADS) Encode() []byte {
+func (rdata DNSRDATADS) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	binary.BigEndian.PutUint16(bytesArray, rdata.KeyTag)
 	bytesArray[2] = byte(rdata.Algorithm)
@@ -768,7 +768,7 @@ func (rdata *DNSRDATADS) Encode() []byte {
 	return bytesArray
 }
 
-func (rdata *DNSRDATADS) EncodeToBuffer(buffer []byte) (int, error) {
+func (rdata DNSRDATADS) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
 		return -1, fmt.Errorf("buffer length %d is less than DS RDATA size %d", len(buffer), rdata.Size())
 	}
@@ -779,7 +779,7 @@ func (rdata *DNSRDATADS) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdata.Size(), nil
 }
 
-func (rdata *DNSRDATADS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+func (rdata DNSRDATADS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	rdEnd := offset + rdLen
 	if rdLen < 4 {
 		return -1, fmt.Errorf("method DNSRDATADS DecodeFromBuffer failed: DS RDATA size %d is less than 4", rdLen)
