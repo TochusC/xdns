@@ -206,8 +206,8 @@ type DNSSECResponser struct {
 }
 
 type DNSSECConfig struct {
-	dAlgo dns.DNSSECAlgorithm
-	dType dns.DNSSECDigestType
+	DAlgo dns.DNSSECAlgorithm
+	DType dns.DNSSECDigestType
 }
 
 type DNSSECMaterial struct {
