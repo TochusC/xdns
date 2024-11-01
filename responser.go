@@ -163,62 +163,6 @@ type DNSSECMaterial struct {
 	DNSKEYRespSec []dns.DNSResourceRecord
 }
 
-func (d DNSSECResponser) CreateDNSSECMat(zoneName string) DNSSECMaterial {
-	pubKskRDATA, privKskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagSecureEntryPoint)
-	pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagZoneKey)
-	pubZskRR := dns.DNSResourceRecord{
-		Name:  zoneName,
-		Type:  dns.DNSRRTypeDNSKEY,
-		Class: dns.DNSClassIN,
-		TTL:   86400,
-		RDLen: uint16(pubZskRDATA.Size()),
-		RData: &pubZskRDATA,
-	}
-	pubKskRR := dns.DNSResourceRecord{
-		Name:  zoneName,
-		Type:  dns.DNSRRTypeDNSKEY,
-		Class: dns.DNSClassIN,
-		TTL:   86400,
-		RDLen: uint16(pubKskRDATA.Size()),
-		RData: &pubKskRDATA,
-	}
-
-	// 生成密钥集签名
-	keySetSig := dns.GenerateRRSIG(
-		[]dns.DNSResourceRecord{
-			pubZskRR,
-			pubKskRR,
-		},
-		d.DNSSECConf.dAlgo,
-		uint32(time.Now().UTC().Unix()+86400-3600),
-		uint32(time.Now().UTC().Unix()-3600),
-		uint16(dns.CalculateKeyTag(pubKskRDATA)),
-		zoneName,
-		privKskBytes,
-	)
-	sigRec := dns.DNSResourceRecord{
-		Name:  zoneName,
-		Type:  dns.DNSRRTypeRRSIG,
-		Class: dns.DNSClassIN,
-		TTL:   86400,
-		RDLen: uint16(keySetSig.Size()),
-		RData: &keySetSig,
-	}
-	// 生成 DNSSEC 材料
-	anSec := []dns.DNSResourceRecord{
-		pubZskRR,
-		pubKskRR,
-		sigRec,
-	}
-	return DNSSECMaterial{
-		KSKTag:        int(dns.CalculateKeyTag(pubKskRDATA)),
-		ZSKTag:        int(dns.CalculateKeyTag(pubZskRDATA)),
-		PrivateKSK:    privKskBytes,
-		PrivateZSK:    privZskBytes,
-		DNSKEYRespSec: anSec,
-	}
-}
-
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
 func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := d.InitResp(qInfo)
@@ -334,6 +278,62 @@ func (d DNSSECResponser) InitResp(qInfo QueryInfo) ResponseInfo {
 	rInfo.DNS.Header.QDCount = qInfo.DNS.Header.QDCount
 	rInfo.DNS.Question = qInfo.DNS.Question
 	return rInfo
+}
+
+func (d DNSSECResponser) CreateDNSSECMat(zoneName string) DNSSECMaterial {
+	pubKskRDATA, privKskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagSecureEntryPoint)
+	pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagZoneKey)
+	pubZskRR := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeDNSKEY,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(pubZskRDATA.Size()),
+		RData: &pubZskRDATA,
+	}
+	pubKskRR := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeDNSKEY,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(pubKskRDATA.Size()),
+		RData: &pubKskRDATA,
+	}
+
+	// 生成密钥集签名
+	keySetSig := dns.GenerateRRSIG(
+		[]dns.DNSResourceRecord{
+			pubZskRR,
+			pubKskRR,
+		},
+		d.DNSSECConf.dAlgo,
+		uint32(time.Now().UTC().Unix()+86400-3600),
+		uint32(time.Now().UTC().Unix()-3600),
+		uint16(dns.CalculateKeyTag(pubKskRDATA)),
+		zoneName,
+		privKskBytes,
+	)
+	sigRec := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeRRSIG,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(keySetSig.Size()),
+		RData: &keySetSig,
+	}
+	// 生成 DNSSEC 材料
+	anSec := []dns.DNSResourceRecord{
+		pubZskRR,
+		pubKskRR,
+		sigRec,
+	}
+	return DNSSECMaterial{
+		KSKTag:        int(dns.CalculateKeyTag(pubKskRDATA)),
+		ZSKTag:        int(dns.CalculateKeyTag(pubZskRDATA)),
+		PrivateKSK:    privKskBytes,
+		PrivateZSK:    privZskBytes,
+		DNSKEYRespSec: anSec,
+	}
 }
 
 // [DNSSEC Responser 使用范例]
