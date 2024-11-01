@@ -156,6 +156,56 @@ func GenerateRRSIG(rrSet []DNSResourceRecord, algo DNSSECAlgorithm,
 	return rrsig
 }
 
+// GenerateDS 生成DNSKEY的 DS RDATA
+// 传入参数：
+//   - oName: DNSKEY 的所有者名称
+//   - kRDATA: DNSKEY RDATA
+//   - dType: 所使用的摘要算法类型
+//
+// 返回值：
+//   - DS RDATA
+//
+// digest = digest_algorithm( DNSKEY owner name | DNSKEY RDATA);
+func GenerateDS(oName string, kRDATA DNSRDATADNSKEY, dType DNSSECDigestType) DNSRDATADS {
+	// 1. 计算 DNSKEY 的 Key Tag
+	keyTag := CalculateKeyTag(kRDATA)
+
+	// 2. 构建明文
+	pText := make([]byte, GetDomainNameWireLen(&oName)+kRDATA.Size())
+	offset, err := EncodeDomainNameToBuffer(&oName, pText)
+	if err != nil {
+		panic(fmt.Sprintf("failed to write domain name: %s", err))
+	}
+	_, err = kRDATA.EncodeToBuffer(pText[offset:])
+	if err != nil {
+		panic(fmt.Sprintf("failed to encode DNSKEY RDATA: %s", err))
+	}
+
+	var digest []byte
+	// 3. 计算摘要
+	switch dType {
+	case DNSSECDigestTypeSHA1:
+		nDigest := sha1.Sum(pText)
+		digest = nDigest[:]
+	case DNSSECDigestTypeSHA256:
+		nDigest := sha256.Sum256(pText)
+		digest = nDigest[:]
+	case DNSSECDigestTypeSHA384:
+		nDigest := sha512.Sum384(pText)
+		digest = nDigest[:]
+	default:
+		panic(fmt.Sprintf("unsupported digest type: %d", dType))
+	}
+
+	// 4. 构建 DS RDATA
+	return DNSRDATADS{
+		KeyTag:     keyTag,
+		Algorithm:  kRDATA.Algorithm,
+		DigestType: dType,
+		Digest:     digest[:],
+	}
+}
+
 // DNSSECAlgorithmer DNSSEC 算法接口
 type DNSSECAlgorithmer interface {
 	// Sign 使用私钥对数据进行签名

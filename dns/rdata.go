@@ -721,7 +721,7 @@ func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int
 //   - DigestType: 8位无符号整数，表示摘要类型。
 //   - Digest: 字节切片，表示摘要。
 //
-// RFC 4034 2.1 节 定义了 DS 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// RFC 4034 5.1 节 定义了 DS 类型的 DNS 资源记录的 RDATA 部分的编码格式。
 // 其 Type 值为 43。
 type DNSRDATADS struct {
 	KeyTag     uint16

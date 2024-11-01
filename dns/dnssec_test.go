@@ -62,6 +62,13 @@ func TestGenerateRRSIG(t *testing.T) {
 	t.Logf("RRSIG: %s", rrsig.String())
 }
 
+// TestGenerateDS 测试生成 DS 记录
+func TestGenerateDS(t *testing.T) {
+	pubKey, _ := GenerateDNSKEY(DNSSECAlgorithmRSASHA256, DNSKEYFlagZoneKey)
+	ds := GenerateDS("test", pubKey, DNSSECDigestTypeSHA1)
+	t.Logf("DS: %s", ds.String())
+}
+
 // Flag: SEP, KeyTag: 30130, Algo: ECDSAP384SHA384
 var testedKeyBase64 = "MzJsFTtAo0j8qGpDIhEMnK4ImTyYwMwDPU5gt/FaXd6TOw6AvZDAj2hlhZvaxMXV6xCw1MU5iPv5ZQrb3NDLUU+TW07imJ5GD9YKi0Qiiypo+zhtL4aGaOG+870yHwuY"
 
