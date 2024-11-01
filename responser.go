@@ -362,7 +362,7 @@ func (d DNSSECResponser) InitResp(qInfo QueryInfo) ResponseInfo {
 // 	Class: dns.DNSClassIN,
 // 	TTL:   86400,
 // 	RDLen: uint16(pubZskRDATA.Size()),
-// 	RData: pubZskRDATA,
+// 	RData: &pubZskRDATA,
 // }
 // pubKskRR := dns.DNSResourceRecord{...}
 // // 生成密钥集签名
