@@ -200,7 +200,7 @@ type StatefulResponser struct {
 	// 客户端IP -> 客户端信息的映射
 	ClientMap map[string]ClientInfo
 	// 自定义回复函数
-	MyReponse func(sConf DNSServerConfig, cMap map[string]ClientInfo,
+	MyResponse func(sConf DNSServerConfig, cMap map[string]ClientInfo,
 		qInfo QueryInfo, rInfo *ResponseInfo) error
 }
 
@@ -219,7 +219,10 @@ func (d StatefulResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := d.InitResp(qInfo)
 
 	// 可以在这里随意地构造回复...
-	d.MyReponse(d.ServerConf, d.ClientMap, qInfo, &rInfo)
+	err := d.MyResponse(d.ServerConf, d.ClientMap, qInfo, &rInfo)
+	if err != nil {
+		return rInfo, err
+	}
 
 	FixCount(&rInfo)
 	return rInfo, nil
@@ -272,7 +275,7 @@ type DNSSECResponser struct {
 	// 在初始化DNSSEC Responser 时很可能需要为其手动添加信任锚点
 	DNSSECMap map[string]DNSSECMaterial
 	// 自定义回复函数
-	MyReponse func(sConf DNSServerConfig, dConf DNSSECConfig,
+	MyResponse func(sConf DNSServerConfig, dConf DNSSECConfig,
 		dMap map[string]DNSSECMaterial, qInfo QueryInfo, rInfo *ResponseInfo) error
 }
 
@@ -295,7 +298,10 @@ func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	d.EnableDNSSEC(qInfo, &rInfo)
 
 	// 在这里可以随意构造回复：
-	d.MyReponse(d.ServerConf, d.DNSSECConf, d.DNSSECMap, qInfo, &rInfo)
+	err := d.MyResponse(d.ServerConf, d.DNSSECConf, d.DNSSECMap, qInfo, &rInfo)
+	if err != nil {
+		return rInfo, err
+	}
 
 	FixCount(&rInfo)
 	return rInfo, nil
@@ -516,7 +522,7 @@ func (d DNSSECResponser) GetDNSSECMat(zoneName string) DNSSECMaterial {
 // 					PrivateKSK:    privKskBytes,
 // 					PrivateZSK:    privZskBytes,
 // 					DNSKEYRespSec: anSec,
-// 				    MyReponse: func(qInfo QueryInfo) ResponseInfo {
+// 				    MyResponse: func(qInfo QueryInfo) ResponseInfo {
 // 				        // 在这里可以随意构造回复...
 // 				        return ResponseInfo{}
 // 				    },
