@@ -124,6 +124,69 @@ func FixCount(rInfo *ResponseInfo) {
 	rInfo.DNS.Header.ARCount = uint16(len(rInfo.DNS.Additional))
 }
 
+// InitTrustAnchor 生成信任锚点
+func InitTrustAnchor(zoneName string, dConf DNSSECConfig, pubKeyBytes, privKeyBytes []byte) godns.DNSSECMaterial {
+	pubKskRDATA := dns.DNSRDATADNSKEY{
+		Flags:     dns.DNSKEYFlagSecureEntryPoint,
+		Protocol:  dns.DNSKEYProtocolValue,
+		Algorithm: dConf.DAlgo,
+		PublicKey: pubKeyBytes,
+	}
+
+	pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagZoneKey)
+	pubZskRR := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeDNSKEY,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(pubZskRDATA.Size()),
+		RData: &pubZskRDATA,
+	}
+	pubKskRR := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeDNSKEY,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(pubKskRDATA.Size()),
+		RData: &pubKskRDATA,
+	}
+
+	// 生成密钥集签名
+	keySetSig := dns.GenerateRRSIG(
+		[]dns.DNSResourceRecord{
+			pubZskRR,
+			pubKskRR,
+		},
+		dConf.DAlgo,
+		uint32(time.Now().UTC().Unix()+86400-3600),
+		uint32(time.Now().UTC().Unix()-3600),
+		uint16(dns.CalculateKeyTag(pubKskRDATA)),
+		zoneName,
+		privKeyBytes,
+	)
+	sigRec := dns.DNSResourceRecord{
+		Name:  zoneName,
+		Type:  dns.DNSRRTypeRRSIG,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(keySetSig.Size()),
+		RData: &keySetSig,
+	}
+	// 生成 DNSSEC 材料
+	anSec := []dns.DNSResourceRecord{
+		pubZskRR,
+		pubKskRR,
+		sigRec,
+	}
+	return DNSSECMaterial{
+		KSKTag:        int(dns.CalculateKeyTag(pubKskRDATA)),
+		ZSKTag:        int(dns.CalculateKeyTag(pubZskRDATA)),
+		PrivateKSK:    privKeyBytes,
+		PrivateZSK:    privZskBytes,
+		DNSKEYRespSec: anSec,
+	}
+}
+
 // 一个可能的 Responser 实现
 // StatefulResponser 是一个"有状态的" Responser 实现。
 // 它能够“记住”每个客户端的查询次数和查询记录。
@@ -136,7 +199,8 @@ type StatefulResponser struct {
 	// 客户端IP -> 客户端信息的映射
 	ClientMap map[string]ClientInfo
 	// 自定义回复函数
-	MyReponse func(qInfo QueryInfo) ResponseInfo
+	MyReponse func(sConf DNSServerConfig, cMap map[string]ClientInfo,
+		qInfo QueryInfo, rInfo *ResponseInfo) ResponseInfo
 }
 
 // ClientInfo 客户端信息
@@ -154,7 +218,7 @@ func (d StatefulResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := d.InitResp(qInfo)
 
 	// 可以在这里随意地构造回复...
-	d.MyReponse(qInfo)
+	d.MyReponse(d.ServerConf, d.ClientMap, qInfo, &rInfo)
 
 	FixCount(&rInfo)
 	return rInfo, nil
@@ -207,7 +271,8 @@ type DNSSECResponser struct {
 	// 在初始化DNSSEC Responser 时很可能需要为其手动添加信任锚点
 	DNSSECMap map[string]DNSSECMaterial
 	// 自定义回复函数
-	MyReponse func(qInfo QueryInfo) ResponseInfo
+	MyReponse func(sConf DNSServerConfig, dConf DNSSECConfig,
+		dMap map[string]DNSSECMaterial, qInfo QueryInfo, rInfo *ResponseInfo) ResponseInfo
 }
 
 type DNSSECConfig struct {
@@ -229,7 +294,7 @@ func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	d.EnableDNSSEC(qInfo, &rInfo)
 
 	// 在这里可以随意构造回复：
-	d.MyReponse(qInfo)
+	d.MyReponse(d.ServerConf, d.DNSSECConf, d.DNSSECMap, qInfo, &rInfo)
 
 	FixCount(&rInfo)
 	return rInfo, nil
