@@ -201,7 +201,7 @@ type StatefulResponser struct {
 	ClientMap map[string]ClientInfo
 	// 自定义回复函数
 	MyReponse func(sConf DNSServerConfig, cMap map[string]ClientInfo,
-		qInfo QueryInfo, rInfo *ResponseInfo) ResponseInfo
+		qInfo QueryInfo, rInfo *ResponseInfo) error
 }
 
 // ClientInfo 客户端信息
@@ -273,7 +273,7 @@ type DNSSECResponser struct {
 	DNSSECMap map[string]DNSSECMaterial
 	// 自定义回复函数
 	MyReponse func(sConf DNSServerConfig, dConf DNSSECConfig,
-		dMap map[string]DNSSECMaterial, qInfo QueryInfo, rInfo *ResponseInfo) ResponseInfo
+		dMap map[string]DNSSECMaterial, qInfo QueryInfo, rInfo *ResponseInfo) error
 }
 
 type DNSSECConfig struct {
