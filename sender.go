@@ -59,16 +59,30 @@ func (sender Sender) Send(rInfo ResponseInfo) (SendInfo, error) {
 	}
 
 	// 分片
-	fragments, err := Fragment(udpPayload, 1500, 20)
+	fragments, err := Fragment(udpPayload, sender.sConf.MTU, 20)
 	if err != nil {
 		return sInfo, fmt.Errorf("function Fragment failed: %s", err)
 	}
 
 	// 生成数据包通道
 	pktChan := make(chan []byte, len(fragments))
+
+	// 计算每个分片的载荷大小：MTU - IP头部长度
+	payloadSize := sender.sConf.MTU - 20
+	payloadSize = payloadSize &^ 7
+
+	// 生成随机IP标识符
+	ipId := rand.Intn(65536)
+
 	// 生成数据包
 	for i, fragment := range fragments {
-		go fragmentToBytes(rInfo.MAC, rInfo.IP, 0, i*8, fragment, pktChan, sender.sConf)
+		if i == len(fragments)-1 {
+			// 最后一个分片
+			go fragmentToBytes(ipId, rInfo.MAC, rInfo.IP, 0, i*payloadSize/8, fragment, pktChan, sender.sConf)
+		} else {
+			// 其他
+			go fragmentToBytes(ipId, rInfo.MAC, rInfo.IP, 1, i*payloadSize/8, fragment, pktChan, sender.sConf)
+		}
 	}
 
 	// 发送数据包
@@ -116,10 +130,7 @@ func Fragment(payload []byte, mtu, ipHeaderLen int) ([][]byte, error) {
 }
 
 // fragmentToBytes 函数用于将分片数据包序列化为字节流。
-func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset int, payload []byte, pktBytes chan []byte, sConf DNSServerConfig) error {
-	// 生成随机IP标识符
-	ipID := uint16(rand.Intn(65536))
-
+func fragmentToBytes(ipId int, dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset int, payload []byte, pktBytes chan []byte, sConf DNSServerConfig) error {
 	// 以太网层
 	eth := &layers.Ethernet{
 		BaseLayer:    layers.BaseLayer{},
@@ -136,9 +147,9 @@ func fragmentToBytes(dstMac net.HardwareAddr, dstIP net.IP, ipFlags int, offset 
 		IHL:        0,
 		TOS:        0,
 		Length:     0,
-		Id:         ipID,
-		Flags:      0,
-		FragOffset: 0,
+		Id:         uint16(ipId),
+		Flags:      layers.IPv4Flag(ipFlags),
+		FragOffset: uint16(offset),
 		TTL:        64,
 		Protocol:   layers.IPProtocolUDP,
 		Checksum:   0,
