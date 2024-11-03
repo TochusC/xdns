@@ -14,8 +14,8 @@ import (
 // TestGenWrongKeyWithTag 测试 GenWrongKeyWithTag 函数
 func TestGenWrongKeyWithTag(t *testing.T) {
 	key := GenWrongKeyWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 12345)
-	if dns.CalculateKeyTag(key) != 12345 {
-		t.Errorf("Key Tag not match, got: %d, expected: %d", dns.CalculateKeyTag(key), 12345)
+	if CalculateKeyTag(key) != 12345 {
+		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 12345)
 	}
 }
 
@@ -46,33 +46,22 @@ func TestGenRandomRRSIG(t *testing.T) {
 	t.Logf("RRSIG: %s", rrsig.String())
 }
 
-// Copyright 2024 TochusC, AOSP Lab. All rights reserved.
-
-// dnssec_test.go 文件定义了 DNSSEC 的单元测试
-
-package xperi
-
-import (
-	"net"
-	"testing"
-)
-
 func TestGenerateDNSKEY(t *testing.T) {
-	pubKey, _ := GenerateDNSKEY(DNSSECAlgorithmRSASHA256, DNSKEYFlagZoneKey)
-	if pubKey.Flags != DNSKEYFlagZoneKey {
+	pubKey, _ := GenerateDNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
+	if pubKey.Flags != dns.DNSKEYFlagZoneKey {
 		t.Errorf("Flag not match")
 	}
 	if pubKey.Protocol != 3 {
 		t.Errorf("Protocol not match")
 	}
-	if pubKey.Algorithm != DNSSECAlgorithmRSASHA256 {
+	if pubKey.Algorithm != dns.DNSSECAlgorithmRSASHA256 {
 		t.Errorf("Algorithm not match")
 	}
 	t.Logf("Public Key: %s", pubKey.String())
 }
 
 func TestCalculateKeyTag(t *testing.T) {
-	key := DNSRDATADNSKEY{
+	key := dns.DNSRDATADNSKEY{
 		Flags:     256,
 		Protocol:  3,
 		Algorithm: 13,
@@ -86,21 +75,21 @@ func TestCalculateKeyTag(t *testing.T) {
 }
 
 func TestGenerateRRSIG(t *testing.T) {
-	rrSet := []DNSResourceRecord{
+	rrSet := []dns.DNSResourceRecord{
 		{
 			Name:  "example.com.",
-			Type:  DNSRRTypeA,
-			Class: DNSClassIN,
+			Type:  dns.DNSRRTypeA,
+			Class: dns.DNSClassIN,
 			TTL:   7200,
-			RData: &DNSRDATAA{
+			RData: &dns.DNSRDATAA{
 				Address: net.ParseIP("10.10.3.3"),
 			},
 		},
 	}
-	pubKey, privKey := GenerateDNSKEY(DNSSECAlgorithmRSASHA256, DNSKEYFlagZoneKey)
+	pubKey, privKey := GenerateDNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
 	rrsig := GenerateRRSIG(
 		rrSet,
-		DNSSECAlgorithmRSASHA256,
+		dns.DNSSECAlgorithmRSASHA256,
 		7200,
 		3600,
 		CalculateKeyTag(pubKey),
@@ -112,8 +101,8 @@ func TestGenerateRRSIG(t *testing.T) {
 
 // TestGenerateDS 测试生成 DS 记录
 func TestGenerateDS(t *testing.T) {
-	pubKey, _ := GenerateDNSKEY(DNSSECAlgorithmRSASHA256, DNSKEYFlagZoneKey)
-	ds := GenerateDS("test", pubKey, DNSSECDigestTypeSHA1)
+	pubKey, _ := GenerateDNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
+	ds := GenerateDS("test", pubKey, dns.DNSSECDigestTypeSHA1)
 	t.Logf("DS: %s", ds.String())
 }
 
@@ -127,10 +116,10 @@ func TestParseKeyBase64(t *testing.T) {
 
 func TestCalculateKeyTagFromBase64(t *testing.T) {
 	key := ParseKeyBase64(testedKeyBase64)
-	kRDATA := DNSRDATADNSKEY{
-		Flags:     DNSKEYFlagSecureEntryPoint,
-		Protocol:  DNSKEYProtocolValue,
-		Algorithm: DNSSECAlgorithmECDSAP384SHA384,
+	kRDATA := dns.DNSRDATADNSKEY{
+		Flags:     dns.DNSKEYFlagSecureEntryPoint,
+		Protocol:  dns.DNSKEYProtocolValue,
+		Algorithm: dns.DNSSECAlgorithmECDSAP384SHA384,
 		PublicKey: key,
 	}
 	keyTag := CalculateKeyTag(kRDATA)

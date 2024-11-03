@@ -57,7 +57,7 @@ func CalculateKeyTag(key dns.DNSRDATADNSKEY) uint16 {
 // 返回值：
 //   - 公钥 DNSKEY RDATA
 //   - 私钥字节
-func GenerateDNSKEY(algo DNSSECAlgorithm, flag DNSKEYFlag) (dns.DNSRDATADNSKEY, []byte) {
+func GenerateDNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSRDATADNSKEY, []byte) {
 	algorithmer := DNSSECAlgorithmerFactory(algo)
 	privKey, pubKey := algorithmer.GenerateKey()
 	return dns.DNSRDATADNSKEY{
@@ -84,16 +84,16 @@ func GenerateDNSKEY(algo DNSSECAlgorithm, flag DNSKEYFlag) (dns.DNSRDATADNSKEY, 
 //   - RRSIG RDATA
 //
 // signature = sign(RRSIG_RDATA | RR(1) | RR(2) | ...)
-func GenerateRRSIG(rrSet []DNSResourceRecord, algo DNSSECAlgorithm,
+func GenerateRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	expiration, inception uint32, keyTag uint16,
-	signerName string, privKey []byte) DNSRDATARRSIG {
+	signerName string, privKey []byte) dns.DNSRDATARRSIG {
 
 	// signature = sign(RRSIG_RDATA | RR(1) | RR(2) | ...)
 	// RRSIG_RDATA
-	rrsig := DNSRDATARRSIG{
+	rrsig := dns.DNSRDATARRSIG{
 		TypeCovered: rrSet[0].Type,
 		Algorithm:   algo,
-		Labels:      uint8(CountDomainNameLabels(&rrSet[0].Name)),
+		Labels:      uint8(dns.CountDomainNameLabels(&rrSet[0].Name)),
 		OriginalTTL: rrSet[0].TTL,
 		Expiration:  expiration,
 		Inception:   inception,
@@ -200,7 +200,7 @@ func GenerateDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestT
 	}
 
 	// 4. 构建 DS RDATA
-	return DNSRDATADS{
+	return dns.DNSRDATADS{
 		KeyTag:     keyTag,
 		Algorithm:  kRDATA.Algorithm,
 		DigestType: dType,
@@ -217,17 +217,17 @@ type DNSSECAlgorithmer interface {
 }
 
 // DNSSECAlgorithmFactory 生成 DNSSECAlgorithmer
-func DNSSECAlgorithmerFactory(algo DNSSECAlgorithm) DNSSECAlgorithmer {
+func DNSSECAlgorithmerFactory(algo dns.DNSSECAlgorithm) DNSSECAlgorithmer {
 	switch algo {
-	case DNSSECAlgorithmRSASHA1:
+	case dns.DNSSECAlgorithmRSASHA1:
 		return RSASHA1{}
-	case DNSSECAlgorithmRSASHA256:
+	case dns.DNSSECAlgorithmRSASHA256:
 		return RSASHA256{}
-	case DNSSECAlgorithmRSASHA512:
+	case dns.DNSSECAlgorithmRSASHA512:
 		return RSASHA512{}
-	case DNSSECAlgorithmECDSAP256SHA256:
+	case dns.DNSSECAlgorithmECDSAP256SHA256:
 		return ECDSAP256SHA256{}
-	case DNSSECAlgorithmECDSAP384SHA384:
+	case dns.DNSSECAlgorithmECDSAP384SHA384:
 		return ECDSAP384SHA384{}
 	default:
 		panic(fmt.Sprintf("unsupported algorithm: %d", algo))
@@ -514,7 +514,7 @@ func GenKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.D
 			PublicKey: pubKey,
 		}
 
-		rTag := dns.CalculateKeyTag(pKey)
+		rTag := CalculateKeyTag(pKey)
 		if int(rTag) == tag {
 			return pKey
 		}
