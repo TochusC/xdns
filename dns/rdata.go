@@ -642,7 +642,8 @@ func (rdata *DNSRDATADNSKEY) DecodeFromBuffer(buffer []byte, offset int, rdLen i
 // 其 Type 值为 47。
 type DNSRDATANSEC struct {
 	NextDomainName string
-	TypeBitMaps    []byte
+	// Type Bit Maps Field = ( Window Block # | Bitmap Length | Bitmap )+
+	TypeBitMaps []byte
 }
 
 func (rdata *DNSRDATANSEC) Type() DNSType {

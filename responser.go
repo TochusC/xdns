@@ -135,6 +135,8 @@ type StatefulResponser struct {
 	DefaultResp ResponseInfo
 	// 客户端IP -> 客户端信息的映射
 	ClientMap map[string]ClientInfo
+	// 自定义回复函数
+	MyReponse func(qInfo QueryInfo) ResponseInfo
 }
 
 // ClientInfo 客户端信息
@@ -152,6 +154,7 @@ func (d StatefulResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := d.InitResp(qInfo)
 
 	// 可以在这里随意地构造回复...
+	d.MyReponse(qInfo)
 
 	FixCount(&rInfo)
 	return rInfo, nil
@@ -203,6 +206,8 @@ type DNSSECResponser struct {
 	// 区域名与其相应 DNSSEC 材料的映射
 	// 在初始化DNSSEC Responser 时很可能需要为其手动添加信任锚点
 	DNSSECMap map[string]DNSSECMaterial
+	// 自定义回复函数
+	MyReponse func(qInfo QueryInfo) ResponseInfo
 }
 
 type DNSSECConfig struct {
@@ -221,53 +226,73 @@ type DNSSECMaterial struct {
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
 func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := InitResp(qInfo)
+	d.EnableDNSSEC(qInfo, &rInfo)
 
-	// 在这里可以随意修改为其他逻辑：
-	// 这里的实现是返回指向服务器的 A 记录
-	qName := qInfo.DNS.Question[0].Name
-	rec := dns.DNSResourceRecord{
-		Name:  qName,
-		Type:  dns.DNSRRTypeA,
-		Class: dns.DNSClassIN,
-		TTL:   86400,
-		RDLen: 0,
-		RData: &dns.DNSRDATAA{Address: d.ServerConf.IP},
-	}
-	qSignerName := dns.GetUpperDomainName(&qName)
-	dnssecMat, ok := d.DNSSECMap[qSignerName]
-	if !ok {
-		d.DNSSECMap[qSignerName] = d.CreateDNSSECMat(qSignerName)
-		dnssecMat = d.DNSSECMap[qSignerName]
-	}
-	sig := dns.GenerateRRSIG(
-		[]dns.DNSResourceRecord{rec},
-		dns.DNSSECAlgorithmECDSAP384SHA384,
-		uint32(time.Now().UTC().Unix()+86400-3600),
-		uint32(time.Now().UTC().Unix()-3600),
-		uint16(dnssecMat.ZSKTag),
-		qSignerName,
-		dnssecMat.PrivateZSK,
-	)
-	sigRec := dns.DNSResourceRecord{
-		Name:  qName,
-		Type:  dns.DNSRRTypeRRSIG,
-		Class: dns.DNSClassIN,
-		TTL:   86400,
-		RDLen: uint16(sig.Size()),
-		RData: &sig,
-	}
-
-	rInfo.DNS.Answer = append(rInfo.DNS.Answer, rec, sigRec)
-	rInfo.DNS.Header.RCode = dns.DNSResponseCodeNoErr
+	// 在这里可以随意构造回复：
+	d.MyReponse(qInfo)
 
 	FixCount(&rInfo)
 	return rInfo, nil
 }
 
-// CreateDNSSECMat 为区域创建 DNSSEC 材料
+// EnableDNSSEC 根据查询自动添加相关的 DNSSEC 记录
+func (d DNSSECResponser) EnableDNSSEC(qInfo QueryInfo, rInfo *ResponseInfo) error {
+	// 提取查询类型和查询名称
+	qType := qInfo.DNS.Question[0].Type
+	qName := qInfo.DNS.Question[0].Name
+
+	if qType == dns.DNSRRTypeDNSKEY {
+		// 如果查询类型为 DNSKEY，则返回相应的 DNSKEY 记录
+		dnssecMat := d.GetDNSSECMat(qName)
+		rInfo.DNS.Answer = append(rInfo.DNS.Answer, dnssecMat.DNSKEYRespSec...)
+		rInfo.DNS.Header.RCode = dns.DNSResponseCodeNoErr
+	} else if qType == dns.DNSRRTypeDS {
+		// 如果查询类型为 DS，则生成 DS 记录
+		dnssecMat := d.GetDNSSECMat(qName)
+		ds := dns.GenerateDS(
+			qName,
+			*dnssecMat.DNSKEYRespSec[1].RData.(*dns.DNSRDATADNSKEY),
+			d.DNSSECConf.DType,
+		)
+		rec := dns.DNSResourceRecord{
+			Name:  qName,
+			Type:  dns.DNSRRTypeDS,
+			Class: dns.DNSClassIN,
+			TTL:   86400,
+			RDLen: uint16(ds.Size()),
+			RData: &ds,
+		}
+
+		// 生成 ZSK 签名
+		upperName := dns.GetUpperDomainName(&qName)
+		dnssecMat = d.GetDNSSECMat(upperName)
+		sig := dns.GenerateRRSIG(
+			[]dns.DNSResourceRecord{rec},
+			d.DNSSECConf.DAlgo,
+			uint32(time.Now().UTC().Unix()+86400-3600),
+			uint32(time.Now().UTC().Unix()-3600),
+			uint16(dnssecMat.ZSKTag),
+			upperName,
+			dnssecMat.PrivateZSK,
+		)
+		sigRec := dns.DNSResourceRecord{
+			Name:  qName,
+			Type:  dns.DNSRRTypeRRSIG,
+			Class: dns.DNSClassIN,
+			TTL:   86400,
+			RDLen: uint16(sig.Size()),
+			RData: &sig,
+		}
+		rInfo.DNS.Answer = append(rInfo.DNS.Answer, rec, sigRec)
+		rInfo.DNS.Header.RCode = dns.DNSResponseCodeNoErr
+	}
+	FixCount(rInfo)
+	return nil
+}
+
 func (d DNSSECResponser) CreateDNSSECMat(zoneName string) DNSSECMaterial {
-	pubKskRDATA, privKskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagSecureEntryPoint)
-	pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(d.DNSSECConf.dAlgo, dns.DNSKEYFlagZoneKey)
+	pubKskRDATA, privKskBytes := dns.GenerateDNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagSecureEntryPoint)
+	pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagZoneKey)
 	pubZskRR := dns.DNSResourceRecord{
 		Name:  zoneName,
 		Type:  dns.DNSRRTypeDNSKEY,
@@ -291,7 +316,7 @@ func (d DNSSECResponser) CreateDNSSECMat(zoneName string) DNSSECMaterial {
 			pubZskRR,
 			pubKskRR,
 		},
-		d.DNSSECConf.dAlgo,
+		dns.DNSSECAlgorithmECDSAP384SHA384,
 		uint32(time.Now().UTC().Unix()+86400-3600),
 		uint32(time.Now().UTC().Unix()-3600),
 		uint16(dns.CalculateKeyTag(pubKskRDATA)),
@@ -321,67 +346,18 @@ func (d DNSSECResponser) CreateDNSSECMat(zoneName string) DNSSECMaterial {
 	}
 }
 
-// EnableDNSSEC 根据查询自动添加相关的 DNSSEC 记录
-func (d DNSSECResponser) EnableDNSSEC(qInfo QueryInfo, rInfo ResponseInfo) error {
-	// 提取查询类型和查询名称
-	qType := qInfo.DNS.Question[0].Type
-	qName := qInfo.DNS.Question[0].Name
-
-	if qType == dns.DNSRRTypeDNSKEY {
-		// 如果查询类型为 DNSKEY，则返回相应的 DNSKEY 记录
-		dnssecMat, ok := d.DNSSECMap[qName]
-		if !ok {
-			d.DNSSECMap[qName] = d.CreateDNSSECMat(qName)
-			dnssecMat = d.DNSSECMap[qName]
-		}
-		rInfo.DNS.Answer = append(rInfo.DNS.Answer, dnssecMat.DNSKEYRespSec...)
-		rInfo.DNS.Header.RCode = dns.DNSResponseCodeNoErr
-		FixCount(&rInfo)
-	} else if qType == dns.DNSRRTypeDS {
-		// 如果查询类型为 DS，则生成 DS 记录并返回
-		ds := dns.GenerateDS(
-			qName,
-			*d.DNSSECMap[qName].DNSKEYRespSec[1].RData.(*dns.DNSRDATADNSKEY),
-			d.DNSSECConf.dType,
-		)
-
-		// 生成 ZSK 签名
-		rec := dns.DNSResourceRecord{
-			Name:  qName,
-			Type:  dns.DNSRRTypeDS,
-			Class: dns.DNSClassIN,
-			TTL:   86400,
-			RDLen: uint16(ds.Size()),
-			RData: &ds,
-		}
-		dnssecMat := d.DNSSECMap[qName]
-		sig := dns.GenerateRRSIG(
-			[]dns.DNSResourceRecord{rec},
-			d.DNSSECConf.dAlgo,
-			uint32(time.Now().UTC().Unix()+86400-3600),
-			uint32(time.Now().UTC().Unix()-3600),
-			uint16(dnssecMat.ZSKTag),
-			qName,
-			dnssecMat.PrivateZSK,
-		)
-		sigRec := dns.DNSResourceRecord{
-			Name:  qName,
-			Type:  dns.DNSRRTypeRRSIG,
-			Class: dns.DNSClassIN,
-			TTL:   86400,
-			RDLen: uint16(sig.Size()),
-			RData: &sig,
-		}
-		rInfo.DNS.Answer = append(rInfo.DNS.Answer, rec, sigRec)
-		rInfo.DNS.Header.RCode = dns.DNSResponseCodeNoErr
-		FixCount(&rInfo)
+func (d DNSSECResponser) GetDNSSECMat(zoneName string) DNSSECMaterial {
+	dnssecMat, ok := d.DNSSECMap[zoneName]
+	if !ok {
+		d.DNSSECMap[zoneName] = d.CreateDNSSECMat(zoneName)
+		dnssecMat = d.DNSSECMap[zoneName]
 	}
-	return nil
+	return dnssecMat
 }
 
 // [DNSSEC Responser 使用范例]
 // // 设置 DNS 服务器配置
-// var conf = godns.DNSServerConfig{...}
+// var conf = DNSServerConfig{...}
 // // 设置DNSSEC配置
 // var dConf = DNSSECConfig{...}
 //
@@ -430,15 +406,15 @@ func (d DNSSECResponser) EnableDNSSEC(qInfo QueryInfo, rInfo ResponseInfo) error
 // }
 
 // // 创建一个 DNS 服务器
-// server := godns.GoDNSSever{
+// server := GoDNSSever{
 // 	ServerConfig: conf,
-// 	Sniffer: []*godns.Sniffer{
-// 		godns.NewSniffer(godns.SnifferConfig{...}),
+// 	Sniffer: []*Sniffer{
+// 		NewSniffer(SnifferConfig{...}),
 // 	},
-// 	Handler: godns.NewHandler(conf,
+// 	Handler: NewHandler(conf,
 // 		&DNSSECResponser{
 // 			ServerConf: conf,
-// 			DefaultResp: godns.ResponseInfo{
+// 			DefaultResp: ResponseInfo{
 // 				// MAC:  qInfo.MAC,
 // 				// IP:   qInfo.IP,
 // 				// Port: qInfo.Port,
@@ -474,6 +450,10 @@ func (d DNSSECResponser) EnableDNSSEC(qInfo QueryInfo, rInfo ResponseInfo) error
 // 					PrivateKSK:    privKskBytes,
 // 					PrivateZSK:    privZskBytes,
 // 					DNSKEYRespSec: anSec,
+// 				    MyReponse: func(qInfo QueryInfo) ResponseInfo {
+// 				        // 在这里可以随意构造回复...
+// 				        return ResponseInfo{}
+// 				    },
 // 				},
 // 			},
 // 		},
