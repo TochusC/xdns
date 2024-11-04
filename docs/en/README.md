@@ -6,6 +6,8 @@
 ![License](https://img.shields.io/github/license/tochusc/godns?style=flat-square)
 [![GoDoc](https://godoc.org/github.com/tochusc/godns?status.svg)](https://godoc.org/github.com/tochusc/godns)
 
+[简体中文](../../README.md) | [English](README.md)
+
 GoDNS is a fast and flexible **experimental** DNS server designed to help developers and researchers explore and experiment with various features of the DNS protocol.
 
 ## Table of Contents

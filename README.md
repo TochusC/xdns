@@ -6,6 +6,8 @@
 ![License](https://img.shields.io/github/license/tochusc/godns?style=flat-square)
 [![GoDoc](https://godoc.org/github.com/tochusc/godns?status.svg)](https://godoc.org/github.com/tochusc/godns)
 
+[简体中文](README.md) | [English](docs/en/README.md)
+
 GoDNS 是一个快速、灵活的**实验用** DNS 服务器，旨在帮助开发者和研究人员探索和实验 DNS 协议的各种特性。
 
 ## 目录
