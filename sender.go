@@ -1,6 +1,8 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // sender.go 文件定义了 Sender 结构体及其相关方法。
+// Sender 结构体使用 google/gopacket 库发送 DNS 消息数据包，
+// 并在此过程中实现了过大数据包分片功能。
 
 package godns
 

@@ -1,9 +1,18 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // standard.go 文件定义了 DNS 所使用到的一些标准化函数
-// 其包括 <domain-dName>, <character-string> 的编解码函数。
-// 可接受绝对域名及相对域名，生成的域名均为相对域名。
-// 当域名为根域名时，返回"."。
+// 其目前包括 <domain-name>, <character-string> 的编解码函数。
+// 关于 <domain-name> 及 <character-string> 的详细定义
+// 请参阅 RFC 1035 3.3节 Standard RRs。
+//
+// # <domain-name>
+//
+// 对于 <domain-name> 的编码，可接受 绝对域名 及 相对域名，
+// 绝对域名 以 '.' 结尾，相对域名后不以'.'结尾。
+// 传入的 相对域名 会视作为 绝对域名 进行编码。
+//
+// 而 <domain-name> 的解码则均以 相对域名 的形式返回结果。
+// 当域名为 根域名 时，返回"."。
 //
 // [ RFC 1035 ] 规定了 DNS 域名的相关定义。
 // DNS 域名由一系列标签组成，标签之间以'.'分隔。
@@ -25,6 +34,14 @@
 //   - 以指针结尾的标签序列。
 //
 // 详细内容请参阅 RFC 1035 4.1.4. Message compression
+//
+// # <character-string>
+//
+// [ RFC 1035 ] 规定了 DNS 字符串的相关定义。
+// DNS 字符串是一系列字符的序列，其编码格式为：字符串长度 + 字符串内容。
+// 字符串长度为一个字节，表示字符串的长度，字符串内容为字符串的实际内容。
+// 长度字节为0时，表示空字符串，长度最大为255，即 DNS 字符串最大长度为255。
+
 package dns
 
 import (
@@ -222,6 +239,7 @@ func CountDomainNameLabels(name *string) int {
 	return labelNum + 1
 }
 
+// GetCharacterStrWireLen 返回字符串的 编码格式长度。
 func GetCharacterStrWireLen(cStr *string) int {
 	strLen := len(*cStr)
 	if strLen == 0 {
@@ -232,6 +250,7 @@ func GetCharacterStrWireLen(cStr *string) int {
 	return strLen + frags
 }
 
+// EncodeCharacterStr 编码字符串，其接受字符串，并返回编码后的字节切片。
 func EncodeCharacterStr(cStr *string) []byte {
 	strLen := len(*cStr)
 	if strLen == 0 {
@@ -256,6 +275,9 @@ func EncodeCharacterStr(cStr *string) []byte {
 	return byteArray
 }
 
+// EncodeCharacterStrToBuffer 将字符串编码到字节切片中。
+//   - 其接收参数为 字符串 和 字节切片，
+//   - 返回值为 编码后长度 及 报错信息。
 func EncodeCharacterStrToBuffer(cStr *string, buffer []byte) (int, error) {
 	encodedLen := GetCharacterStrWireLen(cStr)
 	if len(buffer) < encodedLen {
@@ -285,6 +307,7 @@ func EncodeCharacterStrToBuffer(cStr *string, buffer []byte) (int, error) {
 	return encodedLen, nil
 }
 
+// DecodeCharacterStr 解码字符串，其接受字节切片，并返回解码后字符串。
 func DecodeCharacterStr(data []byte) string {
 	dLen := len(data)
 	if dLen == 1 {

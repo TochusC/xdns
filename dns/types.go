@@ -65,52 +65,6 @@ const (
 	DNSResponseCodeBadCookie DNSResponseCode = 23 // 错误/缺失的服务器Cookie        [RFC7873]
 )
 
-// String 方法返回 DNS 响应码的字符串表示。
-func (drc DNSResponseCode) String() string {
-	switch drc {
-	default:
-		return fmt.Sprintf("Unknown DNS Response Code: (%d)", drc)
-	case DNSResponseCodeNoErr:
-		return "No Error"
-	case DNSResponseCodeFormErr:
-		return "Format Error"
-	case DNSResponseCodeServFail:
-		return "Server Failure"
-	case DNSResponseCodeNXDomain:
-		return "Non-Existent Domain"
-	case DNSResponseCodeNotImp:
-		return "Not Implemented"
-	case DNSResponseCodeRefused:
-		return "Query Refused"
-	case DNSResponseCodeYXDomain:
-		return "Name Exists when it should not"
-	case DNSResponseCodeYXRRSet:
-		return "RR Set Exists when it should not"
-	case DNSResponseCodeNXRRSet:
-		return "RR Set that should exist does not"
-	case DNSResponseCodeNotAuth:
-		return "Server Not Authoritative for zone"
-	case DNSResponseCodeNotZone:
-		return "Name not contained in zone"
-	case DNSResponseCodeBadVers:
-		return "Bad OPT Version"
-	case DNSResponseCodeBadKey:
-		return "Key not recognized"
-	case DNSResponseCodeBadTime:
-		return "Signature out of time window"
-	case DNSResponseCodeBadMode:
-		return "Bad TKEY Mode"
-	case DNSResponseCodeBadName:
-		return "Duplicate key name"
-	case DNSResponseCodeBadAlg:
-		return "Algorithm not supported"
-	case DNSResponseCodeBadTruc:
-		return "Bad Truncation"
-	case DNSResponseCodeBadCookie:
-		return "Bad Cookie"
-	}
-}
-
 // DNSOpCode 表示DNS操作码，用于指示DNS请求的操作类型。
 type DNSOpCode uint8
 
@@ -224,6 +178,117 @@ const (
 
 	DNSRRTypeUnknown DNSType = 0 // 未知类型
 )
+
+// DNSSECAlgorithm 表示DNSSEC记录所使用的签名算法。
+// 更多信息请参阅 RFC 4034 第 5.1 节。
+type DNSSECAlgorithm uint8
+
+// DNSSEC已知的签名算法 RFC 4034 Appendix A.1.
+const (
+	DNSSECAlgorithmReserved        DNSSECAlgorithm = 0
+	DNSSECAlgorithmRSAMD5          DNSSECAlgorithm = 1 // Zone Signing: n, [RFC2537], NOT RECOMMENDED
+	DNSSECAlgorithmDH              DNSSECAlgorithm = 2 // Zone Signing: n, [RFC2539]
+	DNSSECAlgorithmDSASHA1         DNSSECAlgorithm = 3 // [RFC2536]
+	DNSSECAlgorithmECC             DNSSECAlgorithm = 4
+	DNSSECAlgorithmRSASHA1         DNSSECAlgorithm = 5 // [RFC3110]
+	DNSSECAlgorithmDSASHA1NSEC3    DNSSECAlgorithm = 6
+	DNSSECAlgorithmRSASHA1NSEC3    DNSSECAlgorithm = 7
+	DNSSECAlgorithmRSASHA256       DNSSECAlgorithm = 8
+	DNSSECAlgorithmRSASHA512       DNSSECAlgorithm = 10
+	DNSSECAlgorithmECCGOST         DNSSECAlgorithm = 12
+	DNSSECAlgorithmECDSAP256SHA256 DNSSECAlgorithm = 13
+	DNSSECAlgorithmECDSAP384SHA384 DNSSECAlgorithm = 14
+	DNSSECAlgorithmED25519         DNSSECAlgorithm = 15
+	DNSSECAlgorithmED448           DNSSECAlgorithm = 16
+	DNSSECAlgorithmINDIRECT        DNSSECAlgorithm = 252
+	DNSSECAlgorithmPRIVATEDNS      DNSSECAlgorithm = 253 // Private DNS [RFC4034 Appendix A.1.1.]
+	DNSSECAlgorithmPRIVATEOID      DNSSECAlgorithm = 254 // Private OID [RFC4034 Appendix A.1.1.]
+	DNSSECAlgorithmReserved255     DNSSECAlgorithm = 255
+)
+
+// DNSKEYFlag 表示DNSKEY记录的密钥标志字段。
+// 更多信息请参阅 RFC 4034 第 2.1.1 节。
+type DNSKEYFlag uint16
+
+// DNSSEC已定义的密钥标志
+const (
+	// DNSKEYFlagOtherKey 表示其他密钥
+	DNSKEYFlagOtherKey DNSKEYFlag = 0
+	// DNSKEYFlagZoneKey 256 表示区域密钥 ZSK (Zone Signing Key)
+	DNSKEYFlagZoneKey DNSKEYFlag = 256
+	// DNSKEYFlagSecureEntryPoint 257 表示KSK (Key Signing Key) (Secure Entry Point)
+	DNSKEYFlagSecureEntryPoint DNSKEYFlag = 257
+)
+
+// DNSKEYProtocol 表示DNSKEY记录的密钥协议字段。
+// 更多信息请参阅 RFC 4034 第 2.1.2 节。
+type DNSKEYProtocol uint8
+
+// DNSKEYProtocol 已定义的密钥协议
+// 3为协议默认值，0为保留值
+const (
+	DNSKEYProtocolReserved DNSKEYProtocol = 0
+	DNSKEYProtocolValue    DNSKEYProtocol = 3
+)
+
+// DNSSECDigestType 表示DNSSEC记录的摘要类型。
+type DNSSECDigestType uint8
+
+// DNSSEC已定义的摘要类型 [RFC4034 Appendix A.2.]
+const (
+	DNSSECDigestTypeReserved DNSSECDigestType = 0
+	DNSSECDigestTypeSHA1     DNSSECDigestType = 1
+	DNSSECDigestTypeSHA256   DNSSECDigestType = 2
+	DNSSECDigestTypeGOST     DNSSECDigestType = 3
+	DNSSECDigestTypeSHA384   DNSSECDigestType = 4
+	DNSSECDigestTypeSHA512   DNSSECDigestType = 5
+)
+
+// String 方法返回 DNS 响应码的字符串表示。
+func (drc DNSResponseCode) String() string {
+	switch drc {
+	default:
+		return fmt.Sprintf("Unknown DNS Response Code: (%d)", drc)
+	case DNSResponseCodeNoErr:
+		return "No Error"
+	case DNSResponseCodeFormErr:
+		return "Format Error"
+	case DNSResponseCodeServFail:
+		return "Server Failure"
+	case DNSResponseCodeNXDomain:
+		return "Non-Existent Domain"
+	case DNSResponseCodeNotImp:
+		return "Not Implemented"
+	case DNSResponseCodeRefused:
+		return "Query Refused"
+	case DNSResponseCodeYXDomain:
+		return "Name Exists when it should not"
+	case DNSResponseCodeYXRRSet:
+		return "RR Set Exists when it should not"
+	case DNSResponseCodeNXRRSet:
+		return "RR Set that should exist does not"
+	case DNSResponseCodeNotAuth:
+		return "Server Not Authoritative for zone"
+	case DNSResponseCodeNotZone:
+		return "Name not contained in zone"
+	case DNSResponseCodeBadVers:
+		return "Bad OPT Version"
+	case DNSResponseCodeBadKey:
+		return "Key not recognized"
+	case DNSResponseCodeBadTime:
+		return "Signature out of time window"
+	case DNSResponseCodeBadMode:
+		return "Bad TKEY Mode"
+	case DNSResponseCodeBadName:
+		return "Duplicate key name"
+	case DNSResponseCodeBadAlg:
+		return "Algorithm not supported"
+	case DNSResponseCodeBadTruc:
+		return "Bad Truncation"
+	case DNSResponseCodeBadCookie:
+		return "Bad Cookie"
+	}
+}
 
 // String 方法返回 DNS 资源记录类型的字符串表示。
 func (dnsType DNSType) String() string {
@@ -410,68 +475,3 @@ func (dnsType DNSType) String() string {
 		return "DLV"
 	}
 }
-
-// DNSSECAlgorithm 表示DNSSEC记录所使用的签名算法。
-// 更多信息请参阅 RFC 4034 第 5.1 节。
-type DNSSECAlgorithm uint8
-
-// DNSSEC已知的签名算法 RFC 4034 Appendix A.1.
-const (
-	DNSSECAlgorithmReserved        DNSSECAlgorithm = 0
-	DNSSECAlgorithmRSAMD5          DNSSECAlgorithm = 1 // Zone Signing: n, [RFC2537], NOT RECOMMENDED
-	DNSSECAlgorithmDH              DNSSECAlgorithm = 2 // Zone Signing: n, [RFC2539]
-	DNSSECAlgorithmDSASHA1         DNSSECAlgorithm = 3 // [RFC2536]
-	DNSSECAlgorithmECC             DNSSECAlgorithm = 4
-	DNSSECAlgorithmRSASHA1         DNSSECAlgorithm = 5 // [RFC3110]
-	DNSSECAlgorithmDSASHA1NSEC3    DNSSECAlgorithm = 6
-	DNSSECAlgorithmRSASHA1NSEC3    DNSSECAlgorithm = 7
-	DNSSECAlgorithmRSASHA256       DNSSECAlgorithm = 8
-	DNSSECAlgorithmRSASHA512       DNSSECAlgorithm = 10
-	DNSSECAlgorithmECCGOST         DNSSECAlgorithm = 12
-	DNSSECAlgorithmECDSAP256SHA256 DNSSECAlgorithm = 13
-	DNSSECAlgorithmECDSAP384SHA384 DNSSECAlgorithm = 14
-	DNSSECAlgorithmED25519         DNSSECAlgorithm = 15
-	DNSSECAlgorithmED448           DNSSECAlgorithm = 16
-	DNSSECAlgorithmINDIRECT        DNSSECAlgorithm = 252
-	DNSSECAlgorithmPRIVATEDNS      DNSSECAlgorithm = 253 // Private DNS [RFC4034 Appendix A.1.1.]
-	DNSSECAlgorithmPRIVATEOID      DNSSECAlgorithm = 254 // Private OID [RFC4034 Appendix A.1.1.]
-	DNSSECAlgorithmReserved255     DNSSECAlgorithm = 255
-)
-
-// DNSKEYFlag 表示DNSKEY记录的密钥标志字段。
-// 更多信息请参阅 RFC 4034 第 2.1.1 节。
-type DNSKEYFlag uint16
-
-// DNSSEC已定义的密钥标志
-const (
-	// DNSKEYFlagOtherKey 表示其他密钥
-	DNSKEYFlagOtherKey DNSKEYFlag = 0
-	// DNSKEYFlagZoneKey 256 表示区域密钥 ZSK (Zone Signing Key)
-	DNSKEYFlagZoneKey DNSKEYFlag = 256
-	// DNSKEYFlagSecureEntryPoint 257 表示KSK (Key Signing Key) (Secure Entry Point)
-	DNSKEYFlagSecureEntryPoint DNSKEYFlag = 257
-)
-
-// DNSKEYProtocol 表示DNSKEY记录的密钥协议字段。
-// 更多信息请参阅 RFC 4034 第 2.1.2 节。
-type DNSKEYProtocol uint8
-
-// DNSKEYProtocol 已定义的密钥协议
-// 3为协议默认值，0为保留值
-const (
-	DNSKEYProtocolReserved DNSKEYProtocol = 0
-	DNSKEYProtocolValue    DNSKEYProtocol = 3
-)
-
-// DNSSECDigestType 表示DNSSEC记录的摘要类型。
-type DNSSECDigestType uint8
-
-// DNSSEC已定义的摘要类型 [RFC4034 Appendix A.2.]
-const (
-	DNSSECDigestTypeReserved DNSSECDigestType = 0
-	DNSSECDigestTypeSHA1     DNSSECDigestType = 1
-	DNSSECDigestTypeSHA256   DNSSECDigestType = 2
-	DNSSECDigestTypeGOST     DNSSECDigestType = 3
-	DNSSECDigestTypeSHA384   DNSSECDigestType = 4
-	DNSSECDigestTypeSHA512   DNSSECDigestType = 5
-)

@@ -1,6 +1,7 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// responser.go 文件定义了 Responser 接口和 DullResponser 结构体。
+// responser.go 文件定义了 Responser 接口及其若干实现范例。
+// 可以根据需求自定义实现 Responser 接口，以生成 DNS 回复信息。
 
 package godns
 

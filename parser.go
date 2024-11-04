@@ -1,6 +1,8 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // parser.go 文件实现了对 DNS 消息的解析功能。
+// 该文件定义了 Parser 结构体，用于解析 DNS 消息。
+// Parser使用 google/gopacket 库来进行 DNS 消息的解析。
 
 package godns
 

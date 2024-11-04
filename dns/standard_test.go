@@ -1,6 +1,6 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
-// name_test.go 用于测试 name.go 文件中实现的的域名编解码功能
+// standard_test.go
 
 package dns
 

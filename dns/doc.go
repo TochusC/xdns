@@ -15,8 +15,9 @@ dns 使用Go的内置实现，提供了 DNS消息 的编解码功能，可以用
 		Additional DNSResponseSection // DNS 附加部分（Additional Section）
 	}
 
-子模块dns/xlayers提供了实现gopacket接口的DNS封装结构，
+子模块dns/xlayers则提供了实现gopacket接口的DNS封装结构，
 
-您可以把dns看作是gopacket中DNS相关部分的重新实现，目的是使其更加易用。
+可以把dns包看作是 gopacket 中 DNS 相关部分的重新实现，目的是使其更加易用。
+也可以将其单独作为一个独立的DNS消息编解码库来使用。
 */
 package dns

@@ -9,6 +9,7 @@ package godns
 
 import (
 	"fmt"
+	"net"
 	"time"
 )
 
@@ -65,4 +66,18 @@ func GoStart(serverConf DNSServerConfig) {
 
 	// 启动 DNS 服务器
 	server.Start()
+}
+
+// DNSServerConfig 记录 DNS 服务器的相关配置
+type DNSServerConfig struct {
+	// DNS 服务器的 IP 地址
+	IP net.IP
+	// DNS 服务器的端口
+	Port int
+	// DNS 服务器所用网络设备的名称
+	NetworkDevice string
+	// DNS 服务器的 MAC 地址
+	MAC net.HardwareAddr
+	// 网络设备的最大传输单元
+	MTU int
 }

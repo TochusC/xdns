@@ -1,6 +1,6 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
-// xlayers_test.go 包含了对 xlayers.go 中 gopacket接口实现的测试。
+// xlayers_test.go 包含了对 xlayers.go 中 gopacket 接口实现的测试。
 
 package xlayers
 

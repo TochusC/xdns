@@ -1,6 +1,8 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
 // Sniffer.go 文件定义了对 Sniffer 的实现。
+// Sniffer 的实现基于 google/gopacket 库,
+// 用于监听网络数据包，并将其转发到指定的通道中。
 
 package godns
 

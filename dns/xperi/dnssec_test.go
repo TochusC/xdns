@@ -46,6 +46,7 @@ func TestGenRandomRRSIG(t *testing.T) {
 	t.Logf("RRSIG: %s", rrsig.String())
 }
 
+// TestGenRandomDNSKEY 测试 GenRandomDNSKEY 函数
 func TestGenerateDNSKEY(t *testing.T) {
 	pubKey, _ := GenerateDNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
 	if pubKey.Flags != dns.DNSKEYFlagZoneKey {
@@ -60,6 +61,7 @@ func TestGenerateDNSKEY(t *testing.T) {
 	t.Logf("Public Key: %s", pubKey.String())
 }
 
+// TestCalculateKeyTag 测试计算 Key Tag
 func TestCalculateKeyTag(t *testing.T) {
 	key := dns.DNSRDATADNSKEY{
 		Flags:     256,
@@ -74,6 +76,7 @@ func TestCalculateKeyTag(t *testing.T) {
 	t.Logf("Key Tag: %d", keyTag)
 }
 
+// TestGenerateRRSIG 测试生成 RRSIG 记录
 func TestGenerateRRSIG(t *testing.T) {
 	rrSet := []dns.DNSResourceRecord{
 		{
@@ -109,11 +112,13 @@ func TestGenerateDS(t *testing.T) {
 // Flag: SEP, KeyTag: 30130, Algo: ECDSAP384SHA384
 var testedKeyBase64 = "MzJsFTtAo0j8qGpDIhEMnK4ImTyYwMwDPU5gt/FaXd6TOw6AvZDAj2hlhZvaxMXV6xCw1MU5iPv5ZQrb3NDLUU+TW07imJ5GD9YKi0Qiiypo+zhtL4aGaOG+870yHwuY"
 
+// TestParseKeyBase64 测试解析 Base64 编码的密钥
 func TestParseKeyBase64(t *testing.T) {
 	key := ParseKeyBase64(testedKeyBase64)
 	t.Logf("Key Length:%d, Key: %v", len(key), key)
 }
 
+// TestCalculateKeyTagFromBase64 测试从 Base64 编码的密钥计算 Key Tag
 func TestCalculateKeyTagFromBase64(t *testing.T) {
 	key := ParseKeyBase64(testedKeyBase64)
 	kRDATA := dns.DNSRDATADNSKEY{
