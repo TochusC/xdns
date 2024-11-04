@@ -8,9 +8,9 @@ import (
 	"net"
 	"testing"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/tochusc/godns/dns"
-	"github.com/tochusc/gopacket"
-	"github.com/tochusc/gopacket/layers"
 )
 
 var testedPacket = []byte{

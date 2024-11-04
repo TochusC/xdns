@@ -11,10 +11,10 @@ import (
 
 	"math/rand"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 	"github.com/tochusc/godns/dns/xlayers"
-	"github.com/tochusc/gopacket"
-	"github.com/tochusc/gopacket/layers"
-	"github.com/tochusc/gopacket/pcap"
 )
 
 // Sender 结构体用于发送 DNS 消息。

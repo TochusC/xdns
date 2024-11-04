@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tochusc/gopacket"
-	"github.com/tochusc/gopacket/pcap"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
 )
 
 // Sniffer 记录了 Sniffer 的相关信息

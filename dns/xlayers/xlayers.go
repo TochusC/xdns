@@ -6,9 +6,9 @@ package xlayers
 import (
 	"errors"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/tochusc/godns/dns"
-	"github.com/tochusc/gopacket"
-	"github.com/tochusc/gopacket/layers"
 )
 
 type DNS struct {

@@ -5,9 +5,9 @@
 package godns
 
 import (
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/tochusc/godns/dns/xlayers"
-	"github.com/tochusc/gopacket"
-	"github.com/tochusc/gopacket/layers"
 )
 
 // Parser 结构体用于解析 DNS 消息。
