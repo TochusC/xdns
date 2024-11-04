@@ -198,7 +198,8 @@ type StatefulResponser struct {
 	// 可以设置其他的默认回复
 	DefaultResp ResponseInfo
 	// 客户端IP -> 客户端信息的映射
-	ClientMap map[string]ClientInfo
+	ClientMap  map[string]ClientInfo
+	MyResponse func(*StatefulResponser, *ResponseInfo) error
 }
 
 // ClientInfo 客户端信息
@@ -216,6 +217,10 @@ func (d StatefulResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := d.InitResp(qInfo)
 
 	// 可以在这里随意地构造回复...
+	err := d.MyResponse(&d, &rInfo)
+	if err != nil {
+		return rInfo, err
+	}
 
 	FixCount(&rInfo)
 	return rInfo, nil
@@ -267,6 +272,8 @@ type DNSSECResponser struct {
 	// 区域名与其相应 DNSSEC 材料的映射
 	// 在初始化DNSSEC Responser 时很可能需要为其手动添加信任锚点
 	DNSSECMap map[string]DNSSECMaterial
+	// 自定义的回复函数
+	MyResponse func(*DNSSECResponser, *ResponseInfo) error
 }
 
 type DNSSECConfig struct {
@@ -288,6 +295,10 @@ func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	d.EnableDNSSEC(qInfo, &rInfo)
 
 	// 在这里可以随意构造回复：
+	err := d.MyResponse(&d, &rInfo)
+	if err != nil {
+		return rInfo, err
+	}
 
 	FixCount(&rInfo)
 	return rInfo, nil
