@@ -1,7 +1,7 @@
 // Copyright 2024 TochusC, AOSP Lab. All rights reserved.
 
-// xlayers.go 文件提供了实现 gopacket.Layer 接口的 DNS 封装结构。
-// 该文件提供的 DNS 结构体可用于替换 gopacket.Layer 中原有的 DNS 结构体，
+// xlayers 包提供了实现 gopacket.Layer 接口的 DNS 封装结构。
+// [xlayers.go]文件提供的 DNS 结构体可用于替换 gopacket.Layer 中原有的 DNS 结构体，
 // 使 gopacket 使用dns包中的实现进行 DNS 消息的编解码。
 //
 //	 // DNS 结构体用于替换 gopacket.Layer 中原有的 DNS 结构体，
