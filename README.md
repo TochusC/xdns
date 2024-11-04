@@ -11,7 +11,7 @@ GoDNS 是一个快速、灵活的**实验用** DNS 服务器，旨在帮助开�
 ## 目录
 
 - [概述](#概述)
-- [GoDNSServer](#gondnserver)
+- [GoDNSServer](#godnsserver)
 - [示例](#示例)
 - [构造和生成 DNS 回复](#构造和生成-dns-回复)
 - [dns 包](#dns-包)
@@ -66,7 +66,9 @@ server.Start()
 
 ## 构造和生成 DNS 回复
 
-`Handler` 用于响应、处理 DNS 请求并回复。实现 `Responser` 接口，可以自定义 DNS 回复的生成方式。`responser.go` 文件中提供了若干的 `Responser` 实现示例，供参考。
+`Handler` 用于响应、处理 DNS 请求并回复。实现 `Responser` 接口，可以自定义 DNS 回复的生成方式。
+
+`responser.go` 文件中提供了若干的 `Responser` 实现示例，以供参考。
 
 ## dns 包
 
@@ -82,14 +84,14 @@ server.Start()
 - **Authority**: 权威部分。
 - **Additional**: 附加部分。
 
-该包支持对未知类型的资源记录进行编解码，灵活满足实验需求。
+dns包支持对未知类型的资源记录进行编解码，灵活满足实验需求。
 
 ## xlayers 子包
 
-`xlayers` 包提供了实现 `gopacket.Layer` 接口的 DNS 封装结构，允许替换 `gopacket.Layer` 中原有的 DNS 结构体。
+`xlayers` 包提供了实现 `gopacket.Layer` 接口的 DNS 封装结构，可用于替换 `gopacket.Layer` 中原有的 DNS 实现。
 
 ```go
-// DNS 结构体用于替换 gopacket.Layer 中原有的 DNS 结构体
+// DNS 结构体可用于替换 gopacket.Layer 中原有的 DNS 实现
 type DNS struct {
     layers.BaseLayer
     DNSMessage dns.DNSMessage
@@ -111,7 +113,7 @@ type DNS struct {
 
 ## 许可证
 
-本项目遵循 [MIT 许可证](LICENSE)。
+本项目遵循 [GPL-3.0 许可证](LICENSE)。
 
 ---
 
