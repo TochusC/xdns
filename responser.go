@@ -69,7 +69,7 @@ func (d DullResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	}, nil
 }
 
-// 下面是一些可能会很有用的工具函数
+// 下面是一些可能会很有用的工具函数及结构体
 
 // DefaultResponse 是一个默认的NXDOMAIN回复信息。
 var DefaultResponse = ResponseInfo{
@@ -188,7 +188,7 @@ func InitTrustAnchor(zoneName string, dConf DNSSECConfig, pubKeyBytes, privKeyBy
 	}
 }
 
-// 一个可能的 Responser 实现
+// 一个可能的 Responser 实现示例
 // StatefulResponser 是一个"有状态的" Responser 实现。
 // 它能够“记住”每个客户端的查询次数和查询记录。
 // 可以根据这些信息来生成不同的回复，或者在此基础上实现更复杂的逻辑。
@@ -199,9 +199,6 @@ type StatefulResponser struct {
 	DefaultResp ResponseInfo
 	// 客户端IP -> 客户端信息的映射
 	ClientMap map[string]ClientInfo
-	// 自定义回复函数
-	MyResponse func(sConf DNSServerConfig, cMap map[string]ClientInfo,
-		qInfo QueryInfo, rInfo *ResponseInfo) error
 }
 
 // ClientInfo 客户端信息
@@ -219,10 +216,6 @@ func (d StatefulResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := d.InitResp(qInfo)
 
 	// 可以在这里随意地构造回复...
-	err := d.MyResponse(d.ServerConf, d.ClientMap, qInfo, &rInfo)
-	if err != nil {
-		return rInfo, err
-	}
 
 	FixCount(&rInfo)
 	return rInfo, nil
@@ -274,9 +267,6 @@ type DNSSECResponser struct {
 	// 区域名与其相应 DNSSEC 材料的映射
 	// 在初始化DNSSEC Responser 时很可能需要为其手动添加信任锚点
 	DNSSECMap map[string]DNSSECMaterial
-	// 自定义回复函数
-	MyResponse func(sConf DNSServerConfig, dConf DNSSECConfig,
-		dMap map[string]DNSSECMaterial, qInfo QueryInfo, rInfo *ResponseInfo) error
 }
 
 type DNSSECConfig struct {
@@ -298,10 +288,6 @@ func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	d.EnableDNSSEC(qInfo, &rInfo)
 
 	// 在这里可以随意构造回复：
-	err := d.MyResponse(d.ServerConf, d.DNSSECConf, d.DNSSECMap, qInfo, &rInfo)
-	if err != nil {
-		return rInfo, err
-	}
 
 	FixCount(&rInfo)
 	return rInfo, nil
@@ -426,110 +412,3 @@ func (d DNSSECResponser) GetDNSSECMat(zoneName string) DNSSECMaterial {
 	}
 	return dnssecMat
 }
-
-// [DNSSEC Responser 使用范例]
-// // 设置 DNS 服务器配置
-// var conf = DNSServerConfig{...}
-// // 设置DNSSEC配置
-// var dConf = DNSSECConfig{...}
-//
-// // 使用ParseKeyBase64解析预先生成的公钥，
-// // 该公钥应确保能够被解析器通过 信任锚点（Trust Anchor）建立的 信任链（Chain of Trust） 所验证。
-// pubKskBytes := dns.ParseKeyBase64("Base64 Encoded PublicKey")
-// privKskBytes := dns.ParseKeyBase64("Base64 Encoded PrivateKey")
-//
-// pubKskRDATA := dns.DNSRDATADNSKEY{
-// 	Flags:     dns.DNSKEYFlagSecureEntryPoint,
-// 	Protocol:  dns.DNSKEYProtocolValue,
-// 	Algorithm: dConf.dAlgo,
-// 	PublicKey: pubKskBytes,
-// }
-// // pubKskRDATA, privKskBytes := dns.GenerateDNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagSecureEntryPoint)
-//
-// pubZskRDATA, privZskBytes := dns.GenerateDNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagZoneKey)
-// pubZskRR := dns.DNSResourceRecord{
-// 	Name:  "test.",
-// 	Type:  dns.DNSRRTypeDNSKEY,
-// 	Class: dns.DNSClassIN,
-// 	TTL:   86400,
-// 	RDLen: uint16(pubZskRDATA.Size()),
-// 	RData: &pubZskRDATA,
-// }
-// pubKskRR := dns.DNSResourceRecord{...}
-// // 生成密钥集签名
-// keySetSig := dns.GenerateRRSIG(
-// 	[]dns.DNSResourceRecord{
-// 		pubZskRR,
-// 		pubKskRR,
-// 	},
-// 	dConf.dAlgo,
-// 	uint32(time.Now().UTC().Unix()+86400-3600),
-// 	uint32(time.Now().UTC().Unix()-3600),
-// 	uint16(dns.CalculateKeyTag(pubKskRDATA)),
-// 	"test.",
-// 	privKskBytes,
-// )
-// sigRec := dns.DNSResourceRecord{...}
-// // 生成 DNSSEC 材料
-// anSec := []dns.DNSResourceRecord{
-// 	pubZskRR,
-// 	pubKskRR,
-// 	sigRec,
-// }
-
-// // 创建一个 DNS 服务器
-// server := GoDNSSever{
-// 	ServerConfig: conf,
-// 	Sniffer: []*Sniffer{
-// 		NewSniffer(SnifferConfig{...}),
-// 	},
-// 	Handler: NewHandler(conf,
-// 		&DNSSECResponser{
-// 			ServerConf: conf,
-// 			DefaultResp: ResponseInfo{
-// 				// MAC:  qInfo.MAC,
-// 				// IP:   qInfo.IP,
-// 				// Port: qInfo.Port,
-// 				DNS: &dns.DNSMessage{
-// 					Header: dns.DNSHeader{
-// 						// ID:      qInfo.DNS.Header.ID,
-// 						QR:     true,
-// 						OpCode: dns.DNSOpCodeQuery,
-// 						AA:     true,
-// 						TC:     false,
-// 						RD:     false,
-// 						RA:     false,
-// 						Z:      0,
-// 						// 很可能会想更改这个RCode
-// 						RCode: dns.DNSResponseCodeNXDomain,
-// 						// QDCount: qInfo.DNS.Header.QDCount,
-// 						ANCount: 0,
-// 						NSCount: 0,
-// 						ARCount: 0,
-// 					},
-// 					// Question:   qInfo.DNS.Question,
-// 					Answer:     []dns.DNSResourceRecord{},
-// 					Authority:  []dns.DNSResourceRecord{},
-// 					Additional: []dns.DNSResourceRecord{},
-// 				},
-// 			},
-// 			DNSSECConf: dConf,
-// 			DNSSECMap: map[string]DNSSECMaterial{
-// 				// 信任锚点
-// 				"test": DNSSECMaterial{
-// 					KSKTag:        int(dns.CalculateKeyTag(pubKskRDATA)),
-// 					ZSKTag:        int(dns.CalculateKeyTag(pubZskRDATA)),
-// 					PrivateKSK:    privKskBytes,
-// 					PrivateZSK:    privZskBytes,
-// 					DNSKEYRespSec: anSec,
-// 				    MyResponse: func(qInfo QueryInfo) ResponseInfo {
-// 				        // 在这里可以随意构造回复...
-// 				        return ResponseInfo{}
-// 				    },
-// 				},
-// 			},
-// 		},
-// 	),
-// }
-// // 启动 DNS 服务器
-// server.Start()
