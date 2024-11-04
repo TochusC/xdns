@@ -212,12 +212,12 @@ type ClientInfo struct {
 }
 
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
-func (d StatefulResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
+func (d *StatefulResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	d.RegisterClient(qInfo)
 	rInfo := d.InitResp(qInfo)
 
 	// 可以在这里随意地构造回复...
-	err := d.MyResponse(&d, &rInfo)
+	err := d.MyResponse(d, &rInfo)
 	if err != nil {
 		return rInfo, err
 	}
@@ -290,12 +290,12 @@ type DNSSECMaterial struct {
 }
 
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
-func (d DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
+func (d *DNSSECResponser) Response(qInfo QueryInfo) (ResponseInfo, error) {
 	rInfo := InitResp(qInfo)
 	d.EnableDNSSEC(qInfo, &rInfo)
 
 	// 在这里可以随意构造回复：
-	err := d.MyResponse(&d, &rInfo)
+	err := d.MyResponse(d, &rInfo)
 	if err != nil {
 		return rInfo, err
 	}
