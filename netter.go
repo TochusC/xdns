@@ -1,6 +1,7 @@
 package godns
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -139,7 +140,12 @@ func (n *Netter) Send(connInfo ConnectionInfo, data []byte) {
 	}
 
 	if connInfo.Protocol == ProtocolTCP {
-		connInfo.StreamConn.Write(data)
+		pktSize := len(data)
+
+		lenByte := make([]byte, 2)
+		binary.BigEndian.PutUint16(lenByte, uint16(pktSize))
+
+		connInfo.StreamConn.Write(append(lenByte, data...))
 		connInfo.StreamConn.Close()
 	}
 }
