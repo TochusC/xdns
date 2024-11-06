@@ -210,7 +210,7 @@ func (dnsMessage *DNSMessage) Encode() []byte {
 	// 编码头部
 	offset, err := dnsMessage.Header.EncodeToBuffer(bytesArray)
 	if err != nil {
-		fmt.Println("method DNSMessage Encode Error(Header):\n", err)
+		fmt.Println("method DNSMessage Encode error(Header):\n", err)
 		os.Exit(1)
 	}
 
@@ -218,14 +218,14 @@ func (dnsMessage *DNSMessage) Encode() []byte {
 	increment, err := dnsMessage.Question.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("method DNSMessage Encode Error(Question Section):\n", err)
+		fmt.Println("method DNSMessage Encode error(Question Section):\n", err)
 		os.Exit(1)
 	}
 	// 编码回答部分
 	increment, err = dnsMessage.Answer.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("method DNSMessage Encode Error(Answer Section):\n", err)
+		fmt.Println("method DNSMessage Encode error(Answer Section):\n", err)
 		os.Exit(1)
 	}
 
@@ -233,7 +233,7 @@ func (dnsMessage *DNSMessage) Encode() []byte {
 	increment, err = dnsMessage.Authority.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("method DNS Encode Error(Authority Section):\n", err)
+		fmt.Println("method DNSMessage Encode error(Authority Section):\n", err)
 		os.Exit(1)
 	}
 
@@ -241,7 +241,7 @@ func (dnsMessage *DNSMessage) Encode() []byte {
 	increment, err = dnsMessage.Additional.EncodeToBuffer(bytesArray[offset:])
 	offset += increment
 	if err != nil {
-		fmt.Println("method DNS Encode Error(Additional Section):\n", err)
+		fmt.Println("method DNSMessage Encode error(Additional Section):\n", err)
 		os.Exit(1)
 	}
 
@@ -257,7 +257,7 @@ func (dnsMessage *DNSMessage) EncodeToBuffer(buffer []byte) (int, error) {
 	// 编码头部
 	offset, err := dnsMessage.Header.EncodeToBuffer(buffer)
 	if err != nil {
-		return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
+		return -1, errors.New("method DNSMessage EncodeToBuffer error: encode Header failed.\n" + err.Error())
 	}
 
 	// 编码查询部分
@@ -265,7 +265,7 @@ func (dnsMessage *DNSMessage) EncodeToBuffer(buffer []byte) (int, error) {
 		increment, err := question.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer failed: encode Question failed.\n" + err.Error())
 		}
 	}
 
@@ -274,7 +274,7 @@ func (dnsMessage *DNSMessage) EncodeToBuffer(buffer []byte) (int, error) {
 		increment, err := answer.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer failed: encode Answer failed.\n" + err.Error())
 		}
 	}
 
@@ -283,7 +283,7 @@ func (dnsMessage *DNSMessage) EncodeToBuffer(buffer []byte) (int, error) {
 		increment, err := authority.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer error: encode Authority failed.\n" + err.Error())
 		}
 	}
 
@@ -292,7 +292,7 @@ func (dnsMessage *DNSMessage) EncodeToBuffer(buffer []byte) (int, error) {
 		increment, err := additional.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, errors.New("method DNSMessage EncodeToBuffer Error:\n" + err.Error())
+			return -1, errors.New("method DNSMessage EncodeToBuffer failed: encode Additonal failed.\n" + err.Error())
 		}
 	}
 
@@ -317,7 +317,7 @@ func (dnsMessage *DNSMessage) DecodeFromBuffer(buffer []byte, offset int) (int, 
 	for i := 0; i < int(dnsMessage.Header.QDCount); i++ {
 		offset, err = dnsMessage.Question[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("method DNS Decode Error(Question Section#%d Offset:%d):\n%s", i, offset, err)
+			return -1, fmt.Errorf("method DNS Decode error: decode Question#%d, Offset:%d, failed:\n%s", i, offset, err)
 		}
 	}
 
@@ -325,7 +325,7 @@ func (dnsMessage *DNSMessage) DecodeFromBuffer(buffer []byte, offset int) (int, 
 	for i := 0; i < int(dnsMessage.Header.ANCount); i++ {
 		offset, err = dnsMessage.Answer[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("method DNS Decode Error(Answer Section):\n%s", err)
+			return -1, fmt.Errorf("method DNS Decode error: decode Answer#%d, Offset:%d, failed:\n%s", i, offset, err)
 		}
 	}
 
@@ -333,7 +333,7 @@ func (dnsMessage *DNSMessage) DecodeFromBuffer(buffer []byte, offset int) (int, 
 	for i := 0; i < int(dnsMessage.Header.NSCount); i++ {
 		offset, err = dnsMessage.Authority[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("method DNS Decode Error(Authority Section):\n%s", err)
+			return -1, fmt.Errorf("method DNS Decode error: decode Authority#%d, Offset:%d, failed:\n%s", i, offset, err)
 		}
 	}
 
@@ -341,7 +341,7 @@ func (dnsMessage *DNSMessage) DecodeFromBuffer(buffer []byte, offset int) (int, 
 	for i := 0; i < int(dnsMessage.Header.ARCount); i++ {
 		offset, err = dnsMessage.Additional[i].DecodeFromBuffer(buffer, offset)
 		if err != nil {
-			return -1, fmt.Errorf("method DNS Decode Error(Additional Section):\n%s", err)
+			return -1, fmt.Errorf("method DNS Decode error: decode Additional#%d, Offset:%d, failed:\n%s", i, offset, err)
 		}
 	}
 
@@ -450,7 +450,7 @@ func (dns *DNSHeader) EncodeToBuffer(buffer []byte) (int, error) {
 func (dnsHeader *DNSHeader) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
 	// 检查缓冲区长度
 	if len(buffer) < offset+12 {
-		return -1, fmt.Errorf("buffer length %d is less than DNSHeader size 12", len(buffer))
+		return -1, fmt.Errorf("method DNSHeader DecodeFromBuffer failed: buffer length %d is less than DNSHeader size 12", len(buffer))
 	}
 	// 开始解码
 	dnsHeader.ID = binary.BigEndian.Uint16(buffer[offset:])
@@ -527,11 +527,11 @@ func (section DNSQuestionSection) Equal(other DNSQuestionSection) bool {
 func (section DNSQuestionSection) Encode() []byte {
 	bytesArray := make([]byte, section.Size())
 	offset := 0
-	for _, question := range section {
+	for qid, question := range section {
 		increment, err := question.EncodeToBuffer(bytesArray[offset:])
 		offset += increment
 		if err != nil {
-			fmt.Println("DNSQuestionSection Encode Error:\n", err)
+			fmt.Printf("method DNSQuestionSection Encode failed: encode Question#%d failed:\n%s", qid, err)
 			os.Exit(1)
 		}
 	}
@@ -544,11 +544,11 @@ func (section DNSQuestionSection) Encode() []byte {
 // 如果出现错误，返回 -1 和 相应报错。
 func (section DNSQuestionSection) EncodeToBuffer(buffer []byte) (int, error) {
 	offset := 0
-	for _, question := range section {
+	for qid, question := range section {
 		increment, err := question.EncodeToBuffer(buffer[offset:])
 		offset += increment
 		if err != nil {
-			return -1, err
+			return -1, fmt.Errorf("method DNSQuestionSection EncodeToBuffer failed: encode Question#%d failed:\n%s", qid, err)
 		}
 	}
 	return offset, nil
@@ -563,7 +563,7 @@ func (dnsQuestion *DNSQuestion) DecodeFromBuffer(buffer []byte, offset int) (int
 	// 解码域名
 	dnsQuestion.Name, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("method DNSQuestion DecodeFromBuffer failed: decode Name failed.\n%s", err)
 	}
 	// 解码类型
 	dnsQuestion.Type = DNSType(binary.BigEndian.Uint16(buffer[offset:]))
@@ -577,7 +577,7 @@ func (dnsQuestion *DNSQuestion) Encode() []byte {
 	buffer := make([]byte, dnsQuestion.Size())
 	offset, err := EncodeDomainNameToBuffer(&dnsQuestion.Name, buffer)
 	if err != nil {
-		fmt.Println("DNSQuestion Encode Error:\n", err)
+		fmt.Printf("method DNSQuestion Encode failed: encode Question name failed\n%s\n", err)
 		os.Exit(1)
 	}
 	binary.BigEndian.PutUint16(buffer[offset:], uint16(dnsQuestion.Type))
@@ -643,7 +643,7 @@ func (responseSection DNSResponseSection) Encode() []byte {
 		increment, err := record.EncodeToBuffer(bytesArray[offset:])
 		offset += increment
 		if err != nil {
-			fmt.Println("DNSResponseSection Encode Error:\n", err)
+			fmt.Printf("method DNSResponseSection Encode failed: encode Record failed:\n%s\n", err)
 			os.Exit(1)
 		}
 	}
@@ -710,21 +710,21 @@ func (rr *DNSResourceRecord) Encode() []byte {
 	byteArray := make([]byte, rr.Size())
 	offset, err := EncodeDomainNameToBuffer(&rr.Name, byteArray)
 	if err != nil {
-		fmt.Println("DNSResourceRecord Encode Error:\n", err)
+		fmt.Printf("method DNSResourceRecord Encode failed: encode Name failed\n%s\n", err)
 		os.Exit(1)
 	}
 	binary.BigEndian.PutUint16(byteArray[offset:], uint16(rr.Type))
 	binary.BigEndian.PutUint16(byteArray[offset+2:], uint16(rr.Class))
 	binary.BigEndian.PutUint32(byteArray[offset+4:], rr.TTL)
 	rdLen, err := rr.RData.EncodeToBuffer(byteArray[offset+10:])
+	if err != nil {
+		fmt.Printf("method DNSResourceRecord Encode failed: encode RDATA failed\n%s\n", err)
+		os.Exit(1)
+	}
 	if rr.RDLen == 0 {
 		binary.BigEndian.PutUint16(byteArray[offset+8:], uint16(rdLen))
 	} else {
 		binary.BigEndian.PutUint16(byteArray[offset+8:], rr.RDLen)
-	}
-	if err != nil {
-		fmt.Println("DNSResourceRecord Encode Error:\n", err)
-		os.Exit(1)
 	}
 	return byteArray
 }
@@ -750,7 +750,7 @@ func (rr *DNSResourceRecord) EncodeToBuffer(buffer []byte) (int, error) {
 	}
 
 	if err != nil {
-		err = errors.New("DNSResourceRecord EncodeToBuffer Error:\n" + err.Error())
+		err = errors.New("DNSResourceRecord EncodeToBuffer error:\n" + err.Error())
 		return -1, err
 	}
 	return offset + 10 + rdLen, err

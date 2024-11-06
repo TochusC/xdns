@@ -129,7 +129,7 @@ func (rdata *DNSRDATAUnknown) Equal(rr DNSRRRDATA) bool {
 
 func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than Unknown RDATA size %d", len(buffer), rdata.Size())
+		return -1, fmt.Errorf("method DNSRDATAUnknown EncodeToBuffer failed: buffer length %d is less than Unknown RDATA size %d", len(buffer), rdata.Size())
 	}
 	copy(buffer, rdata.RData)
 	return rdata.Size(), nil
@@ -137,7 +137,7 @@ func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
 
 func (rdata *DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	if len(buffer) < offset+rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than offset %d + Unknown RDATA size %d", len(buffer), offset, rdata.Size())
+		return -1, fmt.Errorf("method DNSRDATAUnknown DecodeFromBuffer failed: buffer length %d is less than offset %d + Unknown RDATA size %d", len(buffer), offset, rdata.Size())
 	}
 	rdata.RData = buffer[offset:]
 	return offset + rdata.Size(), nil
@@ -191,7 +191,7 @@ func (rdata *DNSRDATAA) Encode() []byte {
 // 如果缓冲区长度不足，返回 -1 和错误信息。
 func (rdata *DNSRDATAA) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than A RDATA size %d", len(buffer), rdata.Size())
+		return -1, fmt.Errorf("method DNSRDATAA EncodeToBuffer failed: buffer length %d is less than A RDATA size %d", len(buffer), rdata.Size())
 	}
 	copy(buffer, rdata.Encode())
 	return rdata.Size(), nil
@@ -204,7 +204,7 @@ func (rdata *DNSRDATAA) EncodeToBuffer(buffer []byte) (int, error) {
 // 如果出现错误，返回 -1, 及 相应报错 。
 func (rdata *DNSRDATAA) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
 	if len(buffer) < offset+rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than offset %d + A RDATA size %d", len(buffer), offset, rdata.Size())
+		return -1, fmt.Errorf("method DNSRDATAA DecodeFromBuffer failed: buffer length %d is less than offset %d + A RDATA size %d", len(buffer), offset, rdata.Size())
 	}
 	rdata.Address = net.IPv4(buffer[offset], buffer[offset+1], buffer[offset+2], buffer[offset+3])
 	return offset + rdata.Size(), nil
@@ -251,7 +251,7 @@ func (rdata *DNSRDATANS) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	_, err := EncodeDomainNameToBuffer(&rdata.NSDNAME, bytesArray)
 	if err != nil {
-		fmt.Println("function EncodeDomainNameToBuffer failed: ", err)
+		fmt.Printf("method DNSRDATANS EncodeDomainNameToBuffer failed: encode NSDNAME failed.\n%v", err)
 		os.Exit(1)
 	}
 	return bytesArray
@@ -260,7 +260,7 @@ func (rdata *DNSRDATANS) Encode() []byte {
 func (rdata *DNSRDATANS) EncodeToBuffer(buffer []byte) (int, error) {
 	rdataSize, err := EncodeDomainNameToBuffer(&rdata.NSDNAME, buffer)
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("method DNSRDATANS EncodeToBuffer failed: encode NSDNAME failed.\n%v", err)
 	}
 	return rdataSize, nil
 }
@@ -269,7 +269,7 @@ func (rdata *DNSRDATANS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) 
 	var err error
 	rdata.NSDNAME, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
 	if err != nil {
-		return -1, fmt.Errorf("decode NS failed: \n%v", err)
+		return -1, fmt.Errorf("method DNSRDATANS DecodeFromBuffer failed: decode NSDNAME failed.\n%v", err)
 	}
 	return offset, nil
 }
@@ -319,7 +319,7 @@ func (rdata *DNSRDATACNAME) Encode() []byte {
 func (rdata *DNSRDATACNAME) EncodeToBuffer(buffer []byte) (int, error) {
 	len, err := EncodeDomainNameToBuffer(&rdata.CNAME, buffer)
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("method DNSRDATACNAME EncodeToBuffer failed: encode CNAME failed.\n%v", err)
 	}
 	return len, nil
 }
@@ -328,7 +328,7 @@ func (rdata *DNSRDATACNAME) DecodeFromBuffer(buffer []byte, offset int, rdLen in
 	var err error
 	rdata.CNAME, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
 	if err != nil {
-		return -1, fmt.Errorf("decode CNAME failed: \n%v", err)
+		return -1, fmt.Errorf("method DNSRDATACNAME DecodeFromBuffer failed: decode CNAME failed.\n%v", err)
 	}
 	return offset, nil
 }
@@ -380,7 +380,11 @@ func (rTXT *DNSRDATATXT) Encode() []byte {
 }
 
 func (rdata *DNSRDATATXT) EncodeToBuffer(buffer []byte) (int, error) {
-	return EncodeCharacterStrToBuffer(&rdata.TXT, buffer)
+	sz, err := EncodeCharacterStrToBuffer(&rdata.TXT, buffer)
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATATXT EncodeToBuffer failed: encode TXT failed.\n%v", err)
+	}
+	return sz, nil
 }
 
 func (rdata *DNSRDATATXT) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
@@ -503,7 +507,7 @@ func (rdata *DNSRDATARRSIG) EncodeToBuffer(buffer []byte) (int, error) {
 	binary.BigEndian.PutUint16(buffer[16:], uint16(rdata.KeyTag))
 	offset, err := EncodeDomainNameToBuffer(&rdata.SignerName, buffer[18:])
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("method DNSRDATARRSIG EncodeToBuffer failed: encode RRSIG Signer Name failed.\n%v", err)
 	}
 	copy(buffer[offset+18:], rdata.Signature)
 	return rdata.Size(), nil
@@ -527,7 +531,7 @@ func (rdata *DNSRDATARRSIG) DecodeFromBuffer(buffer []byte, offset int, rdLen in
 	rdata.KeyTag = binary.BigEndian.Uint16(buffer[offset+16:])
 	rdata.SignerName, offset, err = DecodeDomainNameFromBuffer(buffer, offset+18)
 	if err != nil {
-		return -1, fmt.Errorf("decode RRSIG Signer Name failed: \n%v", err)
+		return -1, fmt.Errorf("method DNSRDATARRSIG DecodeFromBuffer failed: decode RRSIG Signer Name failed.\n%v", err)
 	}
 	copy(rdata.Signature, buffer[offset:rdEnd])
 	return rdEnd, nil
@@ -600,7 +604,7 @@ func (rdata *DNSRDATADNSKEY) Encode() []byte {
 
 func (rdata *DNSRDATADNSKEY) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than DNSKEY RDATA size %d", len(buffer), rdata.Size())
+		return -1, fmt.Errorf("method DNSRDATADNSKEY EncodeToBuffer failed: buffer length %d is less than DNSKEY RDATA size %d", len(buffer), rdata.Size())
 	}
 	binary.BigEndian.PutUint16(buffer, uint16(rdata.Flags))
 	buffer[2] = uint8(rdata.Protocol)
@@ -684,7 +688,7 @@ func (rdata *DNSRDATANSEC) EncodeToBuffer(buffer []byte) (int, error) {
 	}
 	offset, err := EncodeDomainNameToBuffer(&rdata.NextDomainName, buffer)
 	if err != nil {
-		return -1, err
+		return -1, fmt.Errorf("method DNSRDATANSEC EncodeToBuffer failed: encode NSEC Next Domain Name failed.\n%v", err)
 	}
 	copy(buffer[offset:], rdata.TypeBitMaps)
 	return rdata.Size(), nil
@@ -698,7 +702,7 @@ func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int
 	}
 	rdata.NextDomainName, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
 	if err != nil {
-		return -1, fmt.Errorf("decode NSEC Next Domain Name failed: \n%v", err)
+		return -1, fmt.Errorf("method DNSRDATANSEC DecodeFromBuffer failed: decode NSEC Next Domain Name failed.\n%v", err)
 	}
 	copy(rdata.TypeBitMaps, buffer[offset:rdEnd])
 	return rdEnd, nil
@@ -771,7 +775,7 @@ func (rdata *DNSRDATADS) Encode() []byte {
 
 func (rdata *DNSRDATADS) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than DS RDATA size %d", len(buffer), rdata.Size())
+		return -1, fmt.Errorf("method DNSRDATADS EncodeToBuffer failed: buffer length %d is less than DS RDATA size %d", len(buffer), rdata.Size())
 	}
 	binary.BigEndian.PutUint16(buffer, rdata.KeyTag)
 	buffer[2] = byte(rdata.Algorithm)

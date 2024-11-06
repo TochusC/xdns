@@ -186,7 +186,7 @@ func DecodeDomainNameFromBuffer(data []byte, offset int) (string, int, error) {
 
 	if dataLength < offset+1 {
 		return "", -1, fmt.Errorf(
-			"DecodeDomainNameFromBuffer Error:\nbuffer is too small, require %d byte size, but got %d",
+			"function DecodeDomainNameFromBuffer error:\nbuffer is too small, require %d byte size, but got %d",
 			offset+1, dataLength)
 	}
 
@@ -282,7 +282,7 @@ func EncodeCharacterStrToBuffer(cStr *string, buffer []byte) (int, error) {
 	encodedLen := GetCharacterStrWireLen(cStr)
 	if len(buffer) < encodedLen {
 		return -1, fmt.Errorf(
-			"EncodeCharacterStrToBuffer Error: buffer is too small, require %d byte size, but got %d",
+			"function EncodeCharacterStrToBuffer error: buffer is too small, require %d byte size, but got %d",
 			encodedLen, len(buffer))
 	}
 

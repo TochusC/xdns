@@ -68,19 +68,21 @@ func (n *Netter) handleListener(lstr net.Listener, connChan chan ConnectionInfo)
 func (n *Netter) handlePktConn(pktConn net.PacketConn, connChan chan ConnectionInfo) {
 	buf := make([]byte, n.Config.MTU)
 
-	sz, addr, err := pktConn.ReadFrom(buf)
-	if err != nil {
-		fmt.Println("Netter: Error reading udp packet: ", err)
-		return
-	}
+	for {
+		sz, addr, err := pktConn.ReadFrom(buf)
+		if err != nil {
+			fmt.Println("Netter: Error reading udp packet: ", err)
+			return
+		}
 
-	pkt := make([]byte, sz)
-	copy(pkt, buf[:sz])
-	connChan <- ConnectionInfo{
-		Protocol:   ProtocolUDP,
-		Address:    addr,
-		PacketConn: pktConn,
-		Packet:     pkt,
+		pkt := make([]byte, sz)
+		copy(pkt, buf[:sz])
+		connChan <- ConnectionInfo{
+			Protocol:   ProtocolUDP,
+			Address:    addr,
+			PacketConn: pktConn,
+			Packet:     pkt,
+		}
 	}
 }
 
@@ -110,7 +112,7 @@ func (n *Netter) handleStreamConn(conn net.Conn, connChan chan ConnectionInfo) {
 	}
 
 	pkt := make([]byte, msgSz)
-	copy(pkt, buf[:msgSz])
+	copy(pkt, buf[2:2+msgSz])
 	connChan <- ConnectionInfo{
 		Protocol:   ProtocolTCP,
 		Address:    conn.RemoteAddr(),
@@ -154,7 +156,6 @@ func (n *Netter) Send(connInfo ConnectionInfo, data []byte) {
 		if err != nil {
 			fmt.Println("Netter: Error writing udp packet: ", err)
 		}
-		connInfo.PacketConn.Close()
 	}
 
 	if connInfo.Protocol == ProtocolTCP {

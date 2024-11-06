@@ -40,7 +40,7 @@ func (d *DullResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, error
 		fmt.Println("Responser: Error decoding DNS query: ", err)
 		return resp, err
 	}
-	fmt.Printf("Responser: Recive DNS Query from %s, QName:%s, QType: %s.",
+	fmt.Printf("Responser: Recive DNS Query from %s, QName:%s, QType: %s\n",
 		connInfo.Address.String(), qry.Question[0].Name, qry.Question[0].Type.String())
 
 	resp = dns.DNSMessage{
