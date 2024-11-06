@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"os"
 )
 
 // NetterConfig 结构体用于记录网络监听器的配置
@@ -26,16 +25,14 @@ func (n *Netter) Sniff() chan ConnectionInfo {
 	// udp
 	pktConn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", n.Config.Port))
 	if err != nil {
-		fmt.Println("Netter: Error listening on udp port: ", err)
-		os.Exit(1)
+		panic(fmt.Sprintln("Netter: Error listening on udp port: ", err))
 	}
 	go n.handlePktConn(pktConn, connChan)
 
 	// tcp
 	lstr, err := net.Listen("tcp", fmt.Sprintf(":%d", n.Config.Port))
 	if err != nil {
-		fmt.Println("Netter: Error listening on tcp port: ", err)
-		os.Exit(1)
+		panic(fmt.Sprintln("Netter: Error listening on tcp port: ", err))
 	}
 	go n.handleListener(lstr, connChan)
 

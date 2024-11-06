@@ -9,7 +9,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"os"
 )
 
 // DNSRRRDATA 接口表示 DNS 资源记录的 RDATA 部分,
@@ -251,8 +250,7 @@ func (rdata *DNSRDATANS) Encode() []byte {
 	bytesArray := make([]byte, rdata.Size())
 	_, err := EncodeDomainNameToBuffer(&rdata.NSDNAME, bytesArray)
 	if err != nil {
-		fmt.Printf("method DNSRDATANS EncodeDomainNameToBuffer failed: encode NSDNAME failed.\n%v", err)
-		os.Exit(1)
+		panic(fmt.Sprintf("method DNSRDATANS Encode failed: encode NSDNAME failed.\n%v", err))
 	}
 	return bytesArray
 }
