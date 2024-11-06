@@ -54,9 +54,8 @@ func GoStart(serverConf DNSServerConfig) {
 		ServerConfig: serverConf,
 		Netter: Netter{
 			Config: NetterConfig{
-				Port:     serverConf.Port,
-				MTU:      serverConf.MTU,
-				Protocol: ProtocolUDP,
+				Port: serverConf.Port,
+				MTU:  serverConf.MTU,
 			},
 		},
 		Responer: &DullResponser{
@@ -74,10 +73,6 @@ type DNSServerConfig struct {
 	IP net.IP
 	// DNS 服务器的端口
 	Port int
-	// DNS 服务器所用网络设备的名称
-	NetworkDevice string
-	// DNS 服务器的 MAC 地址
-	MAC net.HardwareAddr
 	// 网络设备的最大传输单元
 	MTU int
 }

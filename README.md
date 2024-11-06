@@ -25,8 +25,8 @@ GoDNS 是一个快速、灵活的**实验用** DNS 服务器，旨在帮助开�
 GoDNSServer 由三部分组成：
 
 1. **ServerConfig**: DNS 服务器的配置。
-2. **Sniffer**: 数据包嗅探器，用于监听网络设备和端口。
-3. **Handler**: 数据包处理器，负责处理 DNS 请求并生成响应。
+2. **Netterr**: 网络处理器，用于监听数据包，发送DNS回复。
+3. **Responser**: 数据包处理器，负责处理 DNS 请求并生成响应。
 
 ## GoDNSServer
 
@@ -34,7 +34,7 @@ GoDNSServer 由三部分组成：
 
 ### Sniffer
 
-`Sniffer` 用于监听指定的网络设备和端口，嗅探 DNS 请求。
+`Netter` 用于监听指定的协议和端口，嗅探 DNS 请求。
 
 ### Handler
 

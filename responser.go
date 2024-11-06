@@ -20,7 +20,7 @@ type Responser interface {
 	// 返回值为：
 	//   - ResponseInfo，DNS 回复信息
 	//   - error，错误信息
-	Response(qInfo ConnectionInfo) (dns.DNSMessage, error)
+	Response(ConnectionInfo) (dns.DNSMessage, error)
 }
 
 // DullResponser 是一个"笨笨的" Responser 实现。
@@ -40,7 +40,7 @@ func (d *DullResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, error
 		fmt.Println("Responser: Error decoding DNS query: ", err)
 		return resp, err
 	}
-	fmt.Println("Responser: Recive DNS Query from %s, QName:%s, QType: %s.",
+	fmt.Printf("Responser: Recive DNS Query from %s, QName:%s, QType: %s.",
 		connInfo.Address.String(), qry.Question[0].Name, qry.Question[0].Type.String())
 
 	resp = dns.DNSMessage{

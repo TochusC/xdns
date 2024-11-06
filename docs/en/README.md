@@ -17,7 +17,6 @@ GoDNS is a fast and flexible **experimental** DNS server designed to help develo
 - [Example](#example)
 - [Constructing and Generating DNS Responses](#constructing-and-generating-dns-responses)
 - [dns Package](#dns-package)
-- [xlayers Subpackage](#xlayers-subpackage)
 - [xperi Subpackage](#xperi-subpackage)
 
 ## Overview
