@@ -20,8 +20,8 @@ import (
 //   - Handler: 数据包处理器
 type GoDNSSever struct {
 	ServerConfig DNSServerConfig
-	Sniffer      []*Sniffer
-	Handler      *Handler
+	Netter       Netter
+	Responer     Responser
 }
 
 // Start 启动 GoDNS 服务器
@@ -29,16 +29,15 @@ func (s *GoDNSSever) Start() {
 	// GoDNS 启动！
 	fmt.Printf("%s : %s\n", time.Now().Format(time.ANSIC), "GoDNS Starts!")
 
-	// 启动 Sniffer
-	for _, sniffer := range s.Sniffer {
-		pktChan := sniffer.Sniff(s.ServerConfig.NetworkDevice, s.ServerConfig.MTU, s.ServerConfig.Port)
-		go func() {
-			for pkt := range pktChan {
-				s.Handler.Handle(pkt)
-			}
-		}()
+	connChan := s.Netter.Sniff()
+	for connInfo := range connChan {
+		resp, err := s.Responer.Response(connInfo)
+		if err != nil {
+			fmt.Println("GoDNS: Error generating response: ", err)
+			continue
+		}
+		s.Netter.Send(connInfo, resp.Encode())
 	}
-
 	for {
 		time.Sleep(1 * time.Second)
 	}
@@ -53,15 +52,16 @@ func GoStart(serverConf DNSServerConfig) {
 	// 创建一个 DNS 服务器
 	server := &GoDNSSever{
 		ServerConfig: serverConf,
-		Sniffer: []*Sniffer{
-			NewSniffer(SnifferConfig{
-				Device:   serverConf.NetworkDevice,
+		Netter: Netter{
+			Config: NetterConfig{
 				Port:     serverConf.Port,
-				PktMax:   65535,
+				MTU:      serverConf.MTU,
 				Protocol: ProtocolUDP,
-			}),
+			},
 		},
-		Handler: NewHandler(serverConf, &DullResponser{}),
+		Responer: &DullResponser{
+			ServerConf: serverConf,
+		},
 	}
 
 	// 启动 DNS 服务器
