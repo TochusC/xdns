@@ -69,7 +69,7 @@ server.Start()
 
 `Handler` is used to respond to and process DNS requests. By implementing the `Responser` interface, you can customize the generation of DNS replies.
 
-The `responser.go` file contains several examples of `Responser` implementations for reference.
+The `responser.go` file contains Serveral examples of `Responser` implementations for reference.
 
 ## dns Package
 

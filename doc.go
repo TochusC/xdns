@@ -6,7 +6,7 @@
 //
 // GoDNSServer 是对 DNS 服务器的最顶层封装。
 //
-// GoDNSSever 包含以下三部分：
+// GoDNSServer 包含以下三部分：
 //   - ServerConfig: DNS 服务器配置
 //   - Sniffer: 数据包嗅探器
 //   - Handler: 数据包处理器
@@ -19,7 +19,7 @@
 //
 //	 通过下述几行代码，可以一键启动一个基础的 GoDNS 服务器：
 //	 // 创建一个 DNS 服务器
-//		server := &GoDNSSever{
+//		server := &GoDNSServer{
 //			ServerConfig: serverConf,
 //			Sniffer: []*Sniffer{
 //				NewSniffer(SnifferConfig{

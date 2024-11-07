@@ -13,19 +13,19 @@ import (
 	"time"
 )
 
-// GoDNSSever 表示 GoDNS 服务器
+// GoDNSServer 表示 GoDNS 服务器
 // 其包含以下三部分：
 //   - ServerConfig: DNS 服务器配置
 //   - Sniffer: 数据包嗅探器
 //   - Handler: 数据包处理器
-type GoDNSSever struct {
+type GoDNSServer struct {
 	ServerConfig DNSServerConfig
 	Netter       Netter
 	Responer     Responser
 }
 
 // Start 启动 GoDNS 服务器
-func (s *GoDNSSever) Start() {
+func (s *GoDNSServer) Start() {
 	// GoDNS 启动！
 	fmt.Printf("%s : %s\n", time.Now().Format(time.ANSIC), "GoDNS Starts!")
 
@@ -50,7 +50,7 @@ func (s *GoDNSSever) Start() {
 //   - Responser: DNS 回复生成器
 func GoStart(serverConf DNSServerConfig) {
 	// 创建一个 DNS 服务器
-	server := &GoDNSSever{
+	server := &GoDNSServer{
 		ServerConfig: serverConf,
 		Netter: Netter{
 			Config: NetterConfig{
