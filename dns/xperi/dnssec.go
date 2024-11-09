@@ -76,10 +76,11 @@ func GenerateRDATADNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNS
 // 返回值：
 //   - DNSKEY RR
 //   - 私钥字节
-func GenerateRRDNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSResourceRecord, []byte) {
+func GenerateRRDNSKEY(
+	zName string, algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSResourceRecord, []byte) {
 	rdata, privKey := GenerateRDATADNSKEY(algo, flag)
 	rr := dns.DNSResourceRecord{
-		Name:  "example.com.",
+		Name:  zName,
 		Type:  dns.DNSRRTypeDNSKEY,
 		Class: dns.DNSClassIN,
 		TTL:   86400,

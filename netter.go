@@ -12,7 +12,7 @@ type NetterConfig struct {
 	MTU  int
 }
 
-// Netter 结构体用于表示网络监听器
+// Netter 数据包监听器：接收、解析、发送数据包，并维护连接状态。
 type Netter struct {
 	Config NetterConfig
 }
@@ -56,7 +56,7 @@ func (n *Netter) handleListener(lstr net.Listener, connChan chan ConnectionInfo)
 	}
 }
 
-// handlePktConn 函数用于处理 数据包链接
+// handlePktConn 函数用于处理 数据包 链接
 // 其接收参数为：
 //   - pktConn: net.PacketConn，数据包链接
 //   - connChan: chan ConnectionInfo，链接信息通道
@@ -143,10 +143,10 @@ const (
 	ProtocolTCP Protocol = "tcp"
 )
 
-// Send 函数用于发送数据
+// Send 函数用于发送数据包
 // 其接收参数为：
 //   - connInfo: ConnectionInfo，链接信息
-//   - data: []byte，数据
+//   - data: []byte，数据包
 func (n *Netter) Send(connInfo ConnectionInfo, data []byte) {
 	if connInfo.Protocol == ProtocolUDP {
 		_, err := connInfo.PacketConn.WriteTo(data, connInfo.Address)
