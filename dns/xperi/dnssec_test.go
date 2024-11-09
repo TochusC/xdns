@@ -48,7 +48,7 @@ func TestGenRandomRRSIG(t *testing.T) {
 
 // TestGenRandomDNSKEY 测试 GenRandomDNSKEY 函数
 func TestGenerateDNSKEY(t *testing.T) {
-	pubKey, _ := GenerateDNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
+	pubKey, _ := GenerateRDATADNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
 	if pubKey.Flags != dns.DNSKEYFlagZoneKey {
 		t.Errorf("Flag not match")
 	}
@@ -89,8 +89,8 @@ func TestGenerateRRSIG(t *testing.T) {
 			},
 		},
 	}
-	pubKey, privKey := GenerateDNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
-	rrsig := GenerateRRSIG(
+	pubKey, privKey := GenerateRDATADNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
+	rrsig := GenerateRDATARRSIG(
 		rrSet,
 		dns.DNSSECAlgorithmRSASHA256,
 		7200,
@@ -104,8 +104,8 @@ func TestGenerateRRSIG(t *testing.T) {
 
 // TestGenerateDS 测试生成 DS 记录
 func TestGenerateDS(t *testing.T) {
-	pubKey, _ := GenerateDNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
-	ds := GenerateDS("test", pubKey, dns.DNSSECDigestTypeSHA1)
+	pubKey, _ := GenerateRDATADNSKEY(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey)
+	ds := GenerateRDATADS("test", pubKey, dns.DNSSECDigestTypeSHA1)
 	t.Logf("DS: %s", ds.String())
 }
 

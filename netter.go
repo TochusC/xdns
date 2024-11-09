@@ -17,8 +17,8 @@ type Netter struct {
 	Config NetterConfig
 }
 
-// Sniff 函数用于监听指定端口，并返回连接信息通道
-// 其返回值为：chan ConnectionInfo，连接信息通道
+// Sniff 函数用于监听指定端口，并返回链接信息通道
+// 其返回值为：chan ConnectionInfo，链接信息通道
 func (n *Netter) Sniff() chan ConnectionInfo {
 	connChan := make(chan ConnectionInfo)
 
@@ -39,12 +39,12 @@ func (n *Netter) Sniff() chan ConnectionInfo {
 	return connChan
 }
 
-// handleListener 函数用于处理 TCP 连接
+// handleListener 函数用于处理 TCP 链接
 // 其接收参数为：
 //   - lstr: net.Listener，TCP 监听器
-//   - connChan: chan ConnectionInfo，连接信息通道
+//   - connChan: chan ConnectionInfo，链接信息通道
 //
-// 该函数将会接受 TCP 连接，并将其发送到连接信息通道中
+// 该函数将会接受 TCP 链接，并将其发送到链接信息通道中
 func (n *Netter) handleListener(lstr net.Listener, connChan chan ConnectionInfo) {
 	for {
 		conn, err := lstr.Accept()
@@ -56,12 +56,12 @@ func (n *Netter) handleListener(lstr net.Listener, connChan chan ConnectionInfo)
 	}
 }
 
-// handlePktConn 函数用于处理 UDP 连接
+// handlePktConn 函数用于处理 数据包链接
 // 其接收参数为：
-//   - pktConn: net.PacketConn，UDP 连接
-//   - connChan: chan ConnectionInfo，连接信息通道
+//   - pktConn: net.PacketConn，数据包链接
+//   - connChan: chan ConnectionInfo，链接信息通道
 //
-// 该函数将会读取 UDP 连接中的数据，并将其发送到连接信息通道中
+// 该函数将会读取 数据包链接 中的数据，并将其发送到链接信息通道中
 func (n *Netter) handlePktConn(pktConn net.PacketConn, connChan chan ConnectionInfo) {
 	buf := make([]byte, n.Config.MTU)
 
@@ -83,12 +83,12 @@ func (n *Netter) handlePktConn(pktConn net.PacketConn, connChan chan ConnectionI
 	}
 }
 
-// handleStreamConn 函数用于处理 TCP 连接
+// handleStreamConn 函数用于处理 流式链接
 // 其接收参数为：
-//   - conn: net.Conn，TCP 连接
-//   - connChan: chan ConnectionInfo，连接信息通道
+//   - conn: net.Conn，流式链接
+//   - connChan: chan ConnectionInfo，链接信息通道
 //
-// 该函数将会读取 TCP 连接中的数据，并将其发送到连接信息通道中
+// 该函数将会读取 流式链接 中的数据，并将其发送到链接信息通道中
 func (n *Netter) handleStreamConn(conn net.Conn, connChan chan ConnectionInfo) {
 	buf := make([]byte, n.Config.MTU)
 
@@ -118,19 +118,19 @@ func (n *Netter) handleStreamConn(conn net.Conn, connChan chan ConnectionInfo) {
 	}
 }
 
-// ConnectionInfo 结构体用于记录连接信息
+// ConnectionInfo 结构体用于记录链接信息
 // 其包含以下字段：
 //   - Protocol: Protocol，网络协议
 //   - Address: net.Addr，地址
-//   - StreamConn: net.Conn，TCP 连接
-//   - PacketConn: net.PacketConn，UDP 连接
+//   - StreamConn: net.Conn，TCP 链接
+//   - PacketConn: net.PacketConn，UDP 链接
 //   - Packet: []byte，数据包
 type ConnectionInfo struct {
 	Protocol Protocol // 网络协议
 	Address  net.Addr //	地址
 
-	StreamConn net.Conn       // TCP 连接
-	PacketConn net.PacketConn // UDP 连接
+	StreamConn net.Conn       // TCP 链接
+	PacketConn net.PacketConn // UDP 链接
 
 	Packet []byte //	数据包
 }
@@ -145,7 +145,7 @@ const (
 
 // Send 函数用于发送数据
 // 其接收参数为：
-//   - connInfo: ConnectionInfo，连接信息
+//   - connInfo: ConnectionInfo，链接信息
 //   - data: []byte，数据
 func (n *Netter) Send(connInfo ConnectionInfo, data []byte) {
 	if connInfo.Protocol == ProtocolUDP {

@@ -49,7 +49,7 @@ func CalculateKeyTag(key dns.DNSRDATADNSKEY) uint16 {
 	return uint16(ac & 0xFFFF)
 }
 
-// GenerateDNSKEY 生成公钥的 DNSKEY RDATA, 并返回私钥字节
+// GenerateRDATADNSKEY 生成公钥的 DNSKEY RDATA, 并返回私钥字节
 // 传入参数：
 //   - algo: DNSSEC 算法
 //   - flag: DNSKEY Flag
@@ -57,7 +57,7 @@ func CalculateKeyTag(key dns.DNSRDATADNSKEY) uint16 {
 // 返回值：
 //   - 公钥 DNSKEY RDATA
 //   - 私钥字节
-func GenerateDNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSRDATADNSKEY, []byte) {
+func GenerateRDATADNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSRDATADNSKEY, []byte) {
 	algorithmer := DNSSECAlgorithmerFactory(algo)
 	privKey, pubKey := algorithmer.GenerateKey()
 	return dns.DNSRDATADNSKEY{
@@ -68,7 +68,28 @@ func GenerateDNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSRDATA
 	}, privKey
 }
 
-// GenerateRRSIG 生成 RRSIG RDATA，
+// GenerateRRDNSKEY 生成 DNSKEY RR，并返回私钥字节
+// 传入参数：
+//   - algo: DNSSEC 算法
+//   - flag: DNSKEY Flag
+//
+// 返回值：
+//   - DNSKEY RR
+//   - 私钥字节
+func GenerateRRDNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSResourceRecord, []byte) {
+	rdata, privKey := GenerateRDATADNSKEY(algo, flag)
+	rr := dns.DNSResourceRecord{
+		Name:  "example.com.",
+		Type:  dns.DNSRRTypeDNSKEY,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(rdata.Size()),
+		RData: &rdata,
+	}
+	return rr, privKey
+}
+
+// GenerateRDATARRSIG 根据传入参数生成 RRSIG RDATA，
 // 该函数目前无法将传入的 RRSET 进行 规范化 及 规范化排序，
 // 所以需要外部保证传入的 RRSET 是规范的，才可以成功生成正确的 RRSIG。
 // 传入参数：
@@ -84,7 +105,7 @@ func GenerateDNSKEY(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSRDATA
 //   - RRSIG RDATA
 //
 // signature = sign(RRSIG_RDATA | RR(1) | RR(2) | ...)
-func GenerateRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
+func GenerateRDATARRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	expiration, inception uint32, keyTag uint16,
 	signerName string, privKey []byte) dns.DNSRDATARRSIG {
 
@@ -139,7 +160,34 @@ func GenerateRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	return rrsig
 }
 
-// GenerateDS 生成DNSKEY的 DS RDATA
+// GenerateRRRRSIG 根据传入参数生成 RRSIG RR
+// 传入参数：
+//   - rrSet: 要签名的 RR 集合
+//   - algo: 签名算法
+//   - expiration: 签名过期时间
+//   - inception: 签名生效时间
+//   - keyTag: 签名公钥的 Key Tag
+//   - signerName: 签名者名称
+//   - privKey: 签名私钥的 字节编码
+//
+// 返回值：
+//   - RRSIG RR
+func GenerateRRRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
+	expiration, inception uint32, keyTag uint16,
+	signerName string, privKey []byte) dns.DNSResourceRecord {
+	rdata := GenerateRDATARRSIG(rrSet, algo, expiration, inception, keyTag, signerName, privKey)
+	rr := dns.DNSResourceRecord{
+		Name:  rrSet[0].Name,
+		Type:  dns.DNSRRTypeRRSIG,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(rdata.Size()),
+		RData: &rdata,
+	}
+	return rr
+}
+
+// GenerateRDATADS 生成 DNSKEY 的 DS RDATA
 // 传入参数：
 //   - oName: DNSKEY 的所有者名称
 //   - kRDATA: DNSKEY RDATA
@@ -149,7 +197,7 @@ func GenerateRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 //   - DS RDATA
 //
 // digest = digest_algorithm( DNSKEY owner name | DNSKEY RDATA);
-func GenerateDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSRDATADS {
+func GenerateRDATADS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSRDATADS {
 	// 1. 计算 DNSKEY 的 Key Tag
 	keyTag := CalculateKeyTag(kRDATA)
 
@@ -187,6 +235,27 @@ func GenerateDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestT
 		DigestType: dType,
 		Digest:     digest[:],
 	}
+}
+
+// GenerateRRDS 生成 DNSKEY 的 DS RR
+// 传入参数：
+//   - oName: DNSKEY 的所有者名称
+//   - kRDATA: DNSKEY RDATA
+//   - dType: 所使用的摘要算法类型
+//
+// 返回值：
+//   - DS RR
+func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSResourceRecord {
+	rdata := GenerateRDATADS(oName, kRDATA, dType)
+	rr := dns.DNSResourceRecord{
+		Name:  oName,
+		Type:  dns.DNSRRTypeDS,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(rdata.Size()),
+		RData: &rdata,
+	}
+	return rr
 }
 
 // GenWrongKey 生成一个具有指定KeyTag，且能通过检验，但错误的 DNSKEY RDATA
