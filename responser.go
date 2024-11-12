@@ -259,11 +259,15 @@ type DNSSECMaterial struct {
 // 否则会导致签名失败。
 func (d *DNSSECManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
 	// 签名回答部分
-	nMap := make(map[string][]dns.DNSResourceRecord)
+	rMap := make(map[string][]dns.DNSResourceRecord)
 	for _, rr := range resp.Answer {
-		nMap[rr.Name] = append(nMap[rr.Name], rr)
+		if rr.Type == dns.DNSRRTypeRRSIG {
+			continue
+		}
+		rid := rr.Name + rr.Type.String() + rr.Class.String()
+		rMap[rid] = append(rMap[rr.Name], rr)
 	}
-	for _, rrset := range nMap {
+	for _, rrset := range rMap {
 		uName := dns.GetUpperDomainName(&rrset[0].Name)
 		dMat := GetDNSSECMaterial(d.DNSSECConf, d.DNSSECMap, uName)
 		sig := xperi.GenerateRRRRSIG(
@@ -279,11 +283,15 @@ func (d *DNSSECManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
 	}
 
 	// 签名权威部分
-	nMap = make(map[string][]dns.DNSResourceRecord)
+	rMap = make(map[string][]dns.DNSResourceRecord)
 	for _, rr := range resp.Authority {
-		nMap[rr.Name] = append(nMap[rr.Name], rr)
+		if rr.Type == dns.DNSRRTypeRRSIG {
+			continue
+		}
+		rid := rr.Name + rr.Type.String() + rr.Class.String()
+		rMap[rid] = append(rMap[rr.Name], rr)
 	}
-	for _, rrset := range nMap {
+	for _, rrset := range rMap {
 		uName := dns.GetUpperDomainName(&rrset[0].Name)
 		dMat := GetDNSSECMaterial(d.DNSSECConf, d.DNSSECMap, uName)
 		sig := xperi.GenerateRRRRSIG(
@@ -299,11 +307,15 @@ func (d *DNSSECManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
 	}
 
 	// 签名附加部分
-	nMap = make(map[string][]dns.DNSResourceRecord)
+	rMap = make(map[string][]dns.DNSResourceRecord)
 	for _, rr := range resp.Additional {
-		nMap[rr.Name] = append(nMap[rr.Name], rr)
+		if rr.Type == dns.DNSRRTypeRRSIG {
+			continue
+		}
+		rid := rr.Name + rr.Type.String() + rr.Class.String()
+		rMap[rid] = append(rMap[rr.Name], rr)
 	}
-	for _, rrset := range nMap {
+	for _, rrset := range rMap {
 		uName := dns.GetUpperDomainName(&rrset[0].Name)
 		dMat := GetDNSSECMaterial(d.DNSSECConf, d.DNSSECMap, uName)
 		sig := xperi.GenerateRRRRSIG(
