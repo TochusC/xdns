@@ -357,7 +357,7 @@ func CreateDNSSECMaterial(dConf DNSSECConfig, zName string) DNSSECMaterial {
 		dns.DNSSECAlgorithmECDSAP384SHA384,
 		uint32(time.Now().UTC().Unix()+86400-3600),
 		uint32(time.Now().UTC().Unix()-3600),
-		zSKTag,
+		kSKTag,
 		zName,
 		privKSKBytes,
 	)
