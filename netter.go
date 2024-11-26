@@ -143,6 +143,16 @@ const (
 	ProtocolTCP Protocol = "tcp"
 )
 
+func (p *Protocol) String() string {
+	if *p == ProtocolUDP {
+		return "UDP"
+	}
+	if *p == ProtocolTCP {
+		return "TCP"
+	}
+	return "Unknown"
+}
+
 // Send 函数用于发送数据包
 // 其接收参数为：
 //   - connInfo: ConnectionInfo，链接信息
@@ -157,6 +167,10 @@ func (n *Netter) Send(connInfo ConnectionInfo, data []byte) {
 
 	if connInfo.Protocol == ProtocolTCP {
 		pktSize := len(data)
+		if pktSize > 0xffff {
+			pktSize = 0xffff
+			fmt.Printf("Netter: Warning: packet size exceeds 0xffff, truncating to 0xffff\n")
+		}
 
 		lenByte := make([]byte, 2)
 		binary.BigEndian.PutUint16(lenByte, uint16(pktSize))

@@ -85,8 +85,9 @@ func ParseQuery(connInfo ConnectionInfo) (dns.DNSMessage, error) {
 		fmt.Printf("[%s]Responser: Error decoding DNS query: %s\n", time.Now().UTC().String(), err)
 		return dns.DNSMessage{}, err
 	}
-	fmt.Printf("[%s]Responser: Recive DNS Query from %s, QName:%s, QType: %s\n",
-		time.Now().UTC().String(), connInfo.Address.String(), qry.Question[0].Name, qry.Question[0].Type.String())
+	fmt.Printf("[%s]Responser: Recive DNS Query from %s,Protocol: %s,  QName: %s, QType: %s\n",
+		time.Now().UTC().String(), connInfo.Address.String(), connInfo.Protocol.String(),
+		qry.Question[0].Name, qry.Question[0].Type.String())
 
 	return qry, nil
 }
