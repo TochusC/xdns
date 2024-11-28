@@ -46,6 +46,7 @@ package dns
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -325,4 +326,30 @@ func DecodeCharacterStr(data []byte) string {
 		deTvlr += strLen
 	}
 	return string(rstBytes[:deTvlr])
+}
+
+func CanonicalizeDomainName(name *string) string {
+	if (*name)[0] == '.' {
+		return "."
+	}
+	return strings.ToLower(*name)
+}
+
+type ByCanonicalOrder []DNSResourceRecord
+
+func (rrSet ByCanonicalOrder) Len() int {
+	return len(rrSet)
+}
+func (rrSet ByCanonicalOrder) Swap(i, j int) {
+	rrSet[i], rrSet[j] = rrSet[j], rrSet[i]
+}
+func (rrSet ByCanonicalOrder) Less(i, j int) bool {
+	rdataBytesI := rrSet[i].RData.Encode()
+	rdataBytesJ := rrSet[j].RData.Encode()
+	return string(rdataBytesI) < string(rdataBytesJ)
+}
+
+func CanonicalSortRRSet(rrSet []DNSResourceRecord) []DNSResourceRecord {
+	sort.Sort(ByCanonicalOrder(rrSet))
+	return rrSet
 }

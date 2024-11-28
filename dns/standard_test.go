@@ -6,6 +6,7 @@ package dns
 
 import (
 	"bytes"
+	"net"
 	"testing"
 )
 
@@ -85,4 +86,38 @@ func TestEncodeDomainNameToBuffer(t *testing.T) {
 	if err == nil {
 		t.Errorf("function EncodeDomainNameToBuffer() failed:\ngot: nil\nexpected: error")
 	}
+}
+
+func TestCanonicalSortRRSet(t *testing.T) {
+	rrSet := []DNSResourceRecord{
+		{
+			Name:  "example.com.",
+			Type:  DNSRRTypeA,
+			Class: DNSClassIN,
+			TTL:   7200,
+			RData: &DNSRDATAA{
+				Address: net.IPv4(10, 10, 3, 6),
+			},
+		},
+		{
+			Name:  "example.com.",
+			Type:  DNSRRTypeA,
+			Class: DNSClassIN,
+			TTL:   7200,
+			RData: &DNSRDATAA{
+				Address: net.IPv4(10, 10, 3, 4),
+			},
+		},
+		{
+			Name:  "example.com.",
+			Type:  DNSRRTypeA,
+			Class: DNSClassIN,
+			TTL:   7200,
+			RData: &DNSRDATAA{
+				Address: net.IPv4(10, 10, 3, 5),
+			},
+		},
+	}
+	rrSet = CanonicalSortRRSet(rrSet)
+	t.Logf("CanonicalSortRRSet: %v", rrSet)
 }

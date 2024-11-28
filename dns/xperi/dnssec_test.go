@@ -28,7 +28,7 @@ import (
 // }
 
 // TestGenRandomRRSIG 测试 GenRandomRRSIG 函数
-func TestGenRandomRRSIG(t *testing.T) {
+func TestGenerateRandomRRSIG(t *testing.T) {
 	rrSet := []dns.DNSResourceRecord{
 		{
 			Name:  "example.com.",
@@ -40,7 +40,7 @@ func TestGenRandomRRSIG(t *testing.T) {
 			},
 		},
 	}
-	rrsig := GenRandomRRSIG(rrSet, dns.DNSSECAlgorithmRSASHA256,
+	rrsig := GenerateRandomRRSIG(rrSet, dns.DNSSECAlgorithmRSASHA256,
 		7200, 3600, 12345, "example.com.")
 
 	t.Logf("RRSIG: %s", rrsig.String())

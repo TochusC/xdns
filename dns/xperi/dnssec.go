@@ -259,7 +259,7 @@ func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDiges
 	return rr
 }
 
-// GenWrongKey 生成一个具有指定KeyTag，且能通过检验，但错误的 DNSKEY RDATA
+// GenerateWrongKey 生成一个具有指定KeyTag，且能通过检验，但错误的 DNSKEY RDATA
 // 传入参数：
 //   - algo: DNSSEC 算法
 //   - flag: DNSKEY Flag
@@ -267,7 +267,7 @@ func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDiges
 //
 // 返回值：
 //   - 你想要的 DNSKEY RDATA
-func GenWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
+func GenerateWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
 	algorithmer := DNSSECAlgorithmerFactory(algo)
 	_, pubKey := algorithmer.GenerateKey()
 	pKey := dns.DNSRDATADNSKEY{
@@ -339,13 +339,13 @@ func GenWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) 
 
 	// 重新计算 Key Tag, 算法不能保证成功
 	if rTag != uint16(tag) {
-		return GenWrongKeyWithTag(algo, flag, tag)
+		return GenerateWrongKeyWithTag(algo, flag, tag)
 	}
 
 	return pKey
 }
 
-// GenKeyWithTag 生成一个具有指定KeyTag的 DNSKEY RDATA
+// GenerateKeyWithTag 生成一个具有指定KeyTag的 DNSKEY RDATA
 // 传入参数：
 //   - algo: DNSSEC 算法
 //   - flag: DNSKEY Flag
@@ -355,7 +355,7 @@ func GenWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) 
 //   - 你想要的 DNSKEY RDATA
 //
 // 注意：这个函数会十分耗时，因为它会尝试生成大量的密钥对，直到找到一个符合要求的密钥对。
-func GenKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
+func GenerateKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
 	for {
 		algorithmer := DNSSECAlgorithmerFactory(algo)
 		_, pubKey := algorithmer.GenerateKey()
@@ -373,7 +373,7 @@ func GenKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.D
 	}
 }
 
-// GenRandomRRSIG 生成一个随机(同时也会是错误的)的 RRSIG RDATA
+// GenerateRandomRRSIG 生成一个随机(同时也会是错误的)的 RRSIG RDATA
 // 传入参数：
 //   - rrSet: 要签名的 RR 集合
 //   - algo: 签名算法
@@ -384,7 +384,7 @@ func GenKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.D
 //
 // 返回值：
 //   - 你想要的 RRSIG RDATA
-func GenRandomRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
+func GenerateRandomRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	expiration, inception uint32, keyTag uint16, signerName string) dns.DNSRDATARRSIG {
 
 	algorithmer := DNSSECAlgorithmerFactory(algo)
@@ -392,12 +392,12 @@ func GenRandomRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	rText := []byte("random plaintext")
 	sig, err := algorithmer.Sign(rText, privKey)
 	if err != nil {
-		panic(fmt.Sprintf("function GenRandomRRSIG() failed:\n%s", err))
+		panic(fmt.Sprintf("function GenerateRandomRRSIG() failed:\n%s", err))
 	}
 
 	_, err = rand.Read(sig)
 	if err != nil {
-		panic(fmt.Sprintf("function GenRandomRRSIG() failed:\n%s", err))
+		panic(fmt.Sprintf("function GenerateRandomRRSIG() failed:\n%s", err))
 	}
 
 	return dns.DNSRDATARRSIG{
