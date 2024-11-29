@@ -11,13 +11,13 @@ import (
 	"github.com/tochusc/godns/dns"
 )
 
-// // TestGenWrongKeyWithTag 测试 GenWrongKeyWithTag 函数
-// func TestGenWrongKeyWithTag(t *testing.T) {
-// 	key := GenWrongKeyWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 12345)
-// 	if CalculateKeyTag(key) != 12345 {
-// 		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 12345)
-// 	}
-// }
+// TestGenerateWrongKeyWithTag 测试 GenerateWrongKeyWithTag 函数
+func TestGenerateWrongKeyWithTag(t *testing.T) {
+	key := GenerateWrongKeyWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 12345)
+	if CalculateKeyTag(key) != 12345 {
+		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 12345)
+	}
+}
 
 // TestGenKeyWithTag 测试 GenKeyWithTag 函数
 // func TestGenKeyWithTag(t *testing.T) {

@@ -259,7 +259,7 @@ func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDiges
 	return rr
 }
 
-// GenerateWrongKey 生成一个具有指定KeyTag，且能通过检验，但错误的 DNSKEY RDATA
+// GenerateWrongKeyWithTag 生成一个具有指定KeyTag，且能通过检验，但错误的 DNSKEY RDATA
 // 传入参数：
 //   - algo: DNSSEC 算法
 //   - flag: DNSKEY Flag
@@ -279,66 +279,45 @@ func GenerateWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag 
 
 	rTag := CalculateKeyTag(pKey)
 	dif := tag - int(rTag)
-
-	fmt.Printf("rTag:%d, tTag:%d, dif: %d\n", rTag, tag, dif)
-
 	if dif < 0 {
-		dif = -dif
-		hDif := dif >> 8
-		lDif := dif & 0xFF
-
-		for tvlr, _ := range pubKey {
-			if tvlr&1 == 0 {
-				if int(pubKey[tvlr])-int(hDif) < 0 {
-					pubKey[tvlr] = 0
-					hDif -= int(pubKey[tvlr])
-				} else {
-					pubKey[tvlr] -= byte(hDif)
-					hDif = 0
-				}
+		dif = 0xFFFF + dif
+	}
+	hDif := dif & 0xFF00 >> 8
+	lDif := dif & 0xFF
+	for i := 0; i < len(pubKey); i++ {
+		bVal := int(pubKey[i])
+		if lDif != 0 && i&1 == 1 {
+			if bVal+lDif > 255 {
+				lDif = 255 - int(pubKey[i])
+				pubKey[i] = 255
+			} else if bVal+lDif < 0 {
+				lDif -= int(pubKey[i])
+				pubKey[i] = 0
 			} else {
-				if int(pubKey[tvlr])-int(hDif) < 0 {
-					pubKey[tvlr] = 0
-					lDif -= int(pubKey[tvlr])
-				} else {
-					pubKey[tvlr] -= byte(lDif)
-					lDif = 0
-				}
-			}
-			if hDif == 0 && lDif == 0 {
-				break
+				pubKey[i] = byte(int(pubKey[i]) + lDif)
+				lDif = 0
 			}
 		}
-	} else {
-		hDif := dif >> 8
-		lDif := dif & 0xFF
-
-		for tvlr, _ := range pubKey {
-			if tvlr&1 == 0 {
-				if int(pubKey[tvlr])+int(hDif) > 0xFF {
-					pubKey[tvlr] = 0xFF
-					hDif -= int(0xFF) - int(pubKey[tvlr])
-				} else {
-					pubKey[tvlr] += byte(hDif)
-					hDif = 0
-				}
+		if hDif != 0 && i&1 == 0 {
+			if bVal+hDif > 255 {
+				hDif = 255 - int(pubKey[i])
+				pubKey[i] = 255
+			} else if bVal+hDif < 0 {
+				hDif -= int(pubKey[i])
+				pubKey[i] = 0
 			} else {
-				if int(pubKey[tvlr])+int(lDif) > 0xFF {
-					pubKey[tvlr] = 0xFF
-					lDif -= int(0xFF) - int(pubKey[tvlr])
-				} else {
-					pubKey[tvlr] += byte(lDif)
-					lDif = 0
-				}
-			}
-			if hDif == 0 && lDif == 0 {
-				break
+				pubKey[i] = byte(int(pubKey[i]) + hDif)
+				hDif = 0
 			}
 		}
 	}
 
+	nTag := CalculateKeyTag(pKey)
+	fmt.Printf("rTag:%d, tTag:%d, dif: %d, nTag:%d, ldif: %d, hdif: %d\n",
+		rTag, tag, dif, nTag, lDif, hDif)
+
 	// 重新计算 Key Tag, 算法不能保证成功
-	if rTag != uint16(tag) {
+	if nTag != uint16(tag) {
 		return GenerateWrongKeyWithTag(algo, flag, tag)
 	}
 
