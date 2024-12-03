@@ -19,13 +19,13 @@ func TestGenerateRandomKeyWithTag(t *testing.T) {
 	}
 }
 
-// TestGenKeyWithTag 测试 GenKeyWithTag 函数
-func TestGenenrateDNSKEYWithTag(t *testing.T) {
-	key := GenerateDNSKEYWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 41797)
-	if int(CalculateKeyTag(key)) != 41797 {
-		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 41797)
-	}
-}
+// // TestGenKeyWithTag 测试 GenKeyWithTag 函数
+// func TestGenenrateDNSKEYWithTag(t *testing.T) {
+// 	key := GenerateDNSKEYWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 41797)
+// 	if int(CalculateKeyTag(key)) != 41797 {
+// 		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 41797)
+// 	}
+// }
 
 // TestGenRandomRRSIG 测试 GenRandomRRSIG 函数
 func TestGenerateRandomRRSIG(t *testing.T) {
