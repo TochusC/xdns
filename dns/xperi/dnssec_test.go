@@ -11,21 +11,21 @@ import (
 	"github.com/tochusc/godns/dns"
 )
 
-// TestGenerateWrongKeyWithTag 测试 GenerateWrongKeyWithTag 函数
-func TestGenerateWrongKeyWithTag(t *testing.T) {
-	key := GenerateWrongKeyWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 12345)
+// TestGenerateRandomKeyWithTag 测试 GenerateRandomKeyWithTag 函数
+func TestGenerateRandomKeyWithTag(t *testing.T) {
+	key := GenerateRandomDNSKEYWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 12345)
 	if CalculateKeyTag(key) != 12345 {
 		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 12345)
 	}
 }
 
 // TestGenKeyWithTag 测试 GenKeyWithTag 函数
-// func TestGenKeyWithTag(t *testing.T) {
-// 	key := GenKeyWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 12345)
-// 	if dns.CalculateKeyTag(key) != 12345 {
-// 		t.Errorf("Key Tag not match, got: %d, expected: %d", dns.CalculateKeyTag(key), 12345)
-// 	}
-// }
+func TestGenenrateDNSKEYWithTag(t *testing.T) {
+	key := GenerateDNSKEYWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 41797)
+	if int(CalculateKeyTag(key)) != 41797 {
+		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 41797)
+	}
+}
 
 // TestGenRandomRRSIG 测试 GenRandomRRSIG 函数
 func TestGenerateRandomRRSIG(t *testing.T) {
@@ -40,7 +40,7 @@ func TestGenerateRandomRRSIG(t *testing.T) {
 			},
 		},
 	}
-	rrsig := GenerateRandomRRSIG(rrSet, dns.DNSSECAlgorithmRSASHA256,
+	rrsig := GenerateRandomRDATARRSIG(rrSet, dns.DNSSECAlgorithmRSASHA256,
 		7200, 3600, 12345, "example.com.")
 
 	t.Logf("RRSIG: %s", rrsig.String())
