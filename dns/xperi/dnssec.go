@@ -259,7 +259,7 @@ func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDiges
 	return rr
 }
 
-// GenerateWrongKeyWithTag 生成一个具有指定KeyTag，且能通过检验，但错误的 DNSKEY RDATA
+// GenerateRandomDNSKEYWithTag 生成一个具有指定KeyTag，且能通过检验，但错误的 DNSKEY RDATA
 // 传入参数：
 //   - algo: DNSSEC 算法
 //   - flag: DNSKEY Flag
@@ -267,7 +267,7 @@ func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDiges
 //
 // 返回值：
 //   - 你想要的 DNSKEY RDATA
-func GenerateWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
+func GenerateRandomDNSKEYWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
 	algorithmer := DNSSECAlgorithmerFactory(algo)
 	_, pubKey := algorithmer.GenerateKey()
 	pKey := dns.DNSRDATADNSKEY{
@@ -313,18 +313,16 @@ func GenerateWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag 
 	}
 
 	nTag := CalculateKeyTag(pKey)
-	fmt.Printf("rTag:%d, tTag:%d, dif: %d, nTag:%d, ldif: %d, hdif: %d\n",
-		rTag, tag, dif, nTag, lDif, hDif)
 
 	// 重新计算 Key Tag, 算法不能保证成功
 	if nTag != uint16(tag) {
-		return GenerateWrongKeyWithTag(algo, flag, tag)
+		return GenerateRandomDNSKEYWithTag(algo, flag, tag)
 	}
 
 	return pKey
 }
 
-// GenerateKeyWithTag 生成一个具有指定KeyTag的 DNSKEY RDATA
+// GenerateDNSKEYWithTag 生成一个具有指定KeyTag的 DNSKEY RDATA
 // 传入参数：
 //   - algo: DNSSEC 算法
 //   - flag: DNSKEY Flag
@@ -334,25 +332,36 @@ func GenerateWrongKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag 
 //   - 你想要的 DNSKEY RDATA
 //
 // 注意：这个函数会十分耗时，因为它会尝试生成大量的密钥对，直到找到一个符合要求的密钥对。
-func GenerateKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
+func GenerateDNSKEYWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
 	for {
-		algorithmer := DNSSECAlgorithmerFactory(algo)
-		_, pubKey := algorithmer.GenerateKey()
-		pKey := dns.DNSRDATADNSKEY{
-			Flags:     flag,
-			Protocol:  3,
-			Algorithm: algo,
-			PublicKey: pubKey,
+		kRDATA, _ := GenerateRDATADNSKEY(
+			algo,
+			flag,
+		)
+		if CalculateKeyTag(kRDATA) == uint16(tag) {
+			return kRDATA
 		}
 
-		rTag := CalculateKeyTag(pKey)
-		if int(rTag) == tag {
-			return pKey
-		}
 	}
 }
 
-// GenerateRandomRRSIG 生成一个随机(同时也会是错误的)的 RRSIG RDATA
+// RandomCharSet 随机字符集
+var RandomCharSet = []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+
+// GenerateRandomString 生成一个随机字符串
+func GenerateRandomString(length int) string {
+	str := make([]byte, length)
+	_, err := rand.Read(str)
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate random string: %s", err))
+	}
+	for i := 0; i < length; i++ {
+		str[i] = RandomCharSet[int(str[i])%62]
+	}
+	return string(str)
+}
+
+// GenerateRandomRDATARRSIG 生成一个随机(同时也会是错误的)的 RRSIG RDATA
 // 传入参数：
 //   - rrSet: 要签名的 RR 集合
 //   - algo: 签名算法
@@ -363,13 +372,13 @@ func GenerateKeyWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) 
 //
 // 返回值：
 //   - 你想要的 RRSIG RDATA
-func GenerateRandomRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
+func GenerateRandomRDATARRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	expiration, inception uint32, keyTag uint16, signerName string) dns.DNSRDATARRSIG {
 
 	algorithmer := DNSSECAlgorithmerFactory(algo)
 	privKey, _ := algorithmer.GenerateKey()
-	rText := []byte("random plaintext")
-	sig, err := algorithmer.Sign(rText, privKey)
+	rText := GenerateRandomString(96)
+	sig, err := algorithmer.Sign([]byte(rText), privKey)
 	if err != nil {
 		panic(fmt.Sprintf("function GenerateRandomRRSIG() failed:\n%s", err))
 	}
@@ -390,6 +399,67 @@ func GenerateRandomRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm
 		SignerName:  signerName,
 		Signature:   sig,
 	}
+}
+
+// GenerateRandomRRSIG 生成一个随机(同时也会是错误的)的 RRSIG RR
+// 传入参数：
+//   - rrSet: 要签名的 RR 集合
+//   - algo: 签名算法
+//   - expiration: 签名过期时间
+//   - inception: 签名生效时间
+//   - keyTag: 签名公钥的 Key Tag
+//   - signerName: 签名者名称
+func GenerateRandomRRRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
+	expiration, inception uint32, keyTag uint16, signerName string) dns.DNSResourceRecord {
+	rdata := GenerateRandomRDATARRSIG(rrSet, algo, expiration, inception, keyTag, signerName)
+	rr := dns.DNSResourceRecord{
+		Name:  rrSet[0].Name,
+		Type:  dns.DNSRRTypeRRSIG,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(rdata.Size()),
+		RData: &rdata,
+	}
+	return rr
+}
+
+func GenerateRandomRDATADS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSRDATADS {
+	rText := []byte(GenerateRandomString(96))
+	var digest []byte
+	switch dType {
+	case dns.DNSSECDigestTypeSHA1:
+		nDigest := sha1.Sum(rText)
+		digest = nDigest[:]
+	case dns.DNSSECDigestTypeSHA256:
+		nDigest := sha256.Sum256(rText)
+		digest = nDigest[:]
+	case dns.DNSSECDigestTypeSHA384:
+		nDigest := sha512.Sum384(rText)
+		digest = nDigest[:]
+	default:
+		panic(fmt.Sprintf("unsupported digest type: %d", dType))
+	}
+
+	// 4. 构建 DS RDATA
+	return dns.DNSRDATADS{
+		KeyTag:     CalculateKeyTag(kRDATA),
+		Algorithm:  kRDATA.Algorithm,
+		DigestType: dType,
+		Digest:     digest[:],
+	}
+}
+
+func GenerateRandomRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSResourceRecord {
+	rdata := GenerateRandomRDATADS(oName, kRDATA, dType)
+	rr := dns.DNSResourceRecord{
+		Name:  oName,
+		Type:  dns.DNSRRTypeDS,
+		Class: dns.DNSClassIN,
+		TTL:   86400,
+		RDLen: uint16(rdata.Size()),
+		RData: &rdata,
+	}
+	return rr
 }
 
 // DNSSECAlgorithmer DNSSEC 算法接口

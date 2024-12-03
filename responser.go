@@ -171,7 +171,16 @@ func FixCount(resp *dns.DNSMessage) {
 // 基本上是开启DNSSEC后的 “笨笨回复器”。
 type DNSSECResponser struct {
 	ServerConf    DNSServerConfig
-	DNSSECManager DNSSECManager
+	DNSSECManager BaseManager
+}
+
+type DNSSECManager interface {
+	EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage)
+	SignSection(section []dns.DNSResourceRecord) []dns.DNSResourceRecord
+	SignRRSet(rrset []dns.DNSResourceRecord) dns.DNSResourceRecord
+	EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) error
+	GetDNSSECMaterial(zName string) DNSSECMaterial
+	CreateDNSSECMaterial(zName string) DNSSECMaterial
 }
 
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
@@ -213,11 +222,11 @@ func (d *DNSSECResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, err
 	return resp, nil
 }
 
-// DNSSECManager 是一个 DNSSEC 管理器 实现范例。
+// BaseManager 是一个 DNSSEC 管理器 实现范例。
 // 它会根据查询信息生成 DNSSEC 签名后的 DNS 回复信息。
 // 该结构体可以用于一键化支持 DNSSEC。
-// 如果要实现更为复杂的 DNSSEC 管理逻辑，可以根据需求自定义 DNSSECManager 结构体。
-type DNSSECManager struct {
+// 如果要实现更为复杂的 DNSSEC 管理逻辑，可以根据需求自定义 BaseManager 结构体。
+type BaseManager struct {
 	// DNSSEC 配置
 	DNSSECConf DNSSECConfig
 	// 区域名与其相应 DNSSEC 材料的映射
@@ -258,7 +267,7 @@ type DNSSECMaterial struct {
 // 该函数会为传入的回复信息自动添加相关的 DNSSEC 记录，
 // 目前尚未实现 规范化排序 功能，需要确保传入回复信息中的记录已经按照规范化排序，
 // 否则会导致签名失败。
-func (d *DNSSECManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
+func (d *BaseManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
 	// 签名回答部分
 	rMap := make(map[string][]dns.DNSResourceRecord)
 	for _, rr := range resp.Answer {
