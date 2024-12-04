@@ -45,8 +45,8 @@
 package dns
 
 import (
+	"encoding/binary"
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -202,8 +202,7 @@ func DecodeDomainNameFromBuffer(data []byte, offset int) (string, int, error) {
 				return "", -1, err
 			}
 			name = append(name, []byte(decodedName)...)
-			nameLength++
-			break
+			return string(name), offset + nameLength + 2, nil
 		}
 
 		if dataLength < offset+nameLength+labelLength+1 {
@@ -349,7 +348,71 @@ func (rrSet ByCanonicalOrder) Less(i, j int) bool {
 	return string(rdataBytesI) < string(rdataBytesJ)
 }
 
-func CanonicalSortRRSet(rrSet []DNSResourceRecord) []DNSResourceRecord {
-	sort.Sort(ByCanonicalOrder(rrSet))
-	return rrSet
+func CanonicalSortRRSet(rrSet []DNSResourceRecord) {
+	rrSetLen := len(rrSet)
+	if rrSetLen == 0 {
+		return
+	}
+	rrSet = ByCanonicalOrder(rrSet)
+}
+
+// DNSMessageCompression 对 DNS 消息进行压缩。
+func CompressDNSMessage(msg []byte) ([]byte, error) {
+	cMsg := make([]byte, 0, len(msg))
+	// 从头部字段提取信息
+	nQD := binary.BigEndian.Uint16(msg[4:6])
+	nAN := binary.BigEndian.Uint16(msg[6:8])
+	nNS := binary.BigEndian.Uint16(msg[8:10])
+	nAR := binary.BigEndian.Uint16(msg[10:12])
+
+	cMsg = append(cMsg, msg[:12]...)
+	cOffset, mOffset := 12, 12
+
+	nameMap := make(map[string]int)
+
+	cFunc := func() error {
+		name, nOffset, err := DecodeDomainNameFromBuffer(msg, mOffset)
+		nLen := nOffset - mOffset
+		if err != nil {
+			return fmt.Errorf("DNSMessageCompression error: %s", err)
+		}
+		name = CanonicalizeDomainName(&name)
+		if _, ok := nameMap[name]; !ok {
+			nameMap[name] = cOffset
+			cMsg = append(cMsg, msg[mOffset:mOffset+nLen]...)
+			cOffset += nLen
+			mOffset += nLen
+		} else {
+			ptr := 0xC000 | nameMap[name]
+			cMsg = append(cMsg, byte(ptr>>8), byte(ptr&0xFF))
+			cOffset += 2
+			mOffset += nLen
+		}
+		return nil
+	}
+
+	// 处理查询部分
+	for i := 0; i < int(nQD); i++ {
+		// 压缩域名
+		cFunc()
+		// 处理其他字段
+		cMsg = append(cMsg, msg[mOffset:mOffset+4]...)
+
+		cOffset += 4
+		mOffset += 4
+	}
+	// 处理其他部分
+	for i := 0; i < int(nAN)+int(nNS)+int(nAR); i++ {
+		err := cFunc()
+		if err != nil {
+			return cMsg, err
+		}
+		// 处理其他字段
+		rdlen := binary.BigEndian.Uint16(msg[mOffset+8 : mOffset+10])
+		cMsg = append(cMsg, msg[mOffset:mOffset+10+int(rdlen)]...)
+		cOffset += 10 + int(rdlen)
+		mOffset += 10 + int(rdlen)
+	}
+
+	return cMsg, nil
 }

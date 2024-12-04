@@ -118,6 +118,75 @@ func TestCanonicalSortRRSet(t *testing.T) {
 			},
 		},
 	}
-	rrSet = CanonicalSortRRSet(rrSet)
+	CanonicalSortRRSet(rrSet)
 	t.Logf("CanonicalSortRRSet: %v", rrSet)
+}
+
+func TestCompressDNSMessage(t *testing.T) {
+	msg := DNSMessage{
+		Header: DNSHeader{
+			ID:      0x1234,
+			QR:      true,
+			OpCode:  DNSOpCodeQuery,
+			AA:      false,
+			TC:      false,
+			RD:      true,
+			RA:      false,
+			Z:       0,
+			RCode:   DNSResponseCodeNoErr,
+			QDCount: 1,
+			ANCount: 3,
+			NSCount: 0,
+		},
+		Question: []DNSQuestion{
+			{
+				Name:  "example.com",
+				Type:  DNSRRTypeA,
+				Class: DNSClassIN,
+			},
+		},
+		Answer: []DNSResourceRecord{
+			{
+				Name:  "example.com",
+				Type:  DNSRRTypeA,
+				Class: DNSClassIN,
+				TTL:   7200,
+				RData: &DNSRDATAA{
+					Address: net.IPv4(10, 10, 3, 6),
+				},
+			},
+			{
+				Name:  "example.com",
+				Type:  DNSRRTypeA,
+				Class: DNSClassIN,
+				TTL:   7200,
+				RData: &DNSRDATAA{
+					Address: net.IPv4(10, 10, 3, 4),
+				},
+			},
+			{
+				Name:  "example.com",
+				Type:  DNSRRTypeA,
+				Class: DNSClassIN,
+				TTL:   7200,
+				RData: &DNSRDATAA{
+					Address: net.IPv4(10, 10, 3, 5),
+				},
+			},
+		},
+	}
+	t.Logf("Original DNS Message: %v", msg)
+	msgBytes := msg.Encode()
+	cMsg, err := CompressDNSMessage(msgBytes)
+	if err != nil {
+		t.Errorf("CompressDNSMessage() failed: %s", err)
+	}
+
+	nrMsg := DNSMessage{}
+	nrMsg.DecodeFromBuffer(msgBytes, 0)
+	t.Logf("Decoded Originial DNS Message: %v", nrMsg)
+
+	rMsg := DNSMessage{}
+	rMsg.DecodeFromBuffer(cMsg, 0)
+	t.Logf("Decoded Compressed DNS Message: %v", rMsg)
 }
