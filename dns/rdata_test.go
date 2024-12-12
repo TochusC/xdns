@@ -654,3 +654,40 @@ func TestDNSRDATADSDecodeFromBuffer(t *testing.T) {
 		t.Error("function DNSRDATADSDecodeFromBuffer() failed: expected an error but got nil")
 	}
 }
+
+func TestDNSRDATAOPTEncode(t *testing.T) {
+	opt := DNSRDATAOPT{
+		OptionCode:   0,
+		OptionLength: 4,
+		OptionData:   []byte{0x00, 0x01, 0x02, 0x03},
+	}
+	encoded := opt.Encode()
+	expected := []byte{
+		0x00, 0x00, 0x00, 0x04,
+		0x00, 0x01, 0x02, 0x03,
+	}
+	if !bytes.Equal(encoded, expected) {
+		t.Errorf("function DNSRDATAOPT.Encode() failed:\ngot:\n%v\nexpected:\n%v",
+			encoded, expected)
+	}
+}
+
+func TestDNSRDATAOPTDecodeFromBuffer(t *testing.T) {
+	encoded := []byte{
+		0x00, 0x00, 0x00, 0x04,
+		0x00, 0x01, 0x02, 0x03,
+	}
+	opt := DNSRDATAOPT{}
+	_, err := opt.DecodeFromBuffer(encoded, 0, len(encoded))
+	if err != nil {
+		t.Errorf("function DNSRDATAOPT.DecodeFromBuffer() failed:\n%s", err)
+	}
+	if opt.OptionCode != 0 || opt.OptionLength != 4 || !bytes.Equal(opt.OptionData, []byte{0x00, 0x01, 0x02, 0x03}) {
+		t.Errorf("function DNSRDATAOPT.DecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
+			opt, DNSRDATAOPT{
+				OptionCode:   0,
+				OptionLength: 4,
+				OptionData:   []byte{0x00, 0x01, 0x02, 0x03},
+			})
+	}
+}

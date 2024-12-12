@@ -684,6 +684,9 @@ func (rr *DNSResourceRecord) Size() int {
 // String 以*易读的形式*返回 DNS 资源记录的字符串表示。
 //   - 其返回值为 DNS 资源记录的字符串表示。
 func (rr *DNSResourceRecord) String() string {
+	if IsPersudoRR(rr) {
+		return NewPersudoRR(rr).String()
+	}
 	return fmt.Sprint(
 		"### DNS Resource Record ###\n",
 		"Name:", rr.Name, "\n",

@@ -83,6 +83,16 @@ func DNSRRRDATAFactory(rtype DNSType) DNSRRRDATA {
 		return &DNSRDATACNAME{}
 	case DNSRRTypeTXT:
 		return &DNSRDATATXT{}
+	case DNSRRTypeRRSIG:
+		return &DNSRDATARRSIG{}
+	case DNSRRTypeDNSKEY:
+		return &DNSRDATADNSKEY{}
+	case DNSRRTypeNSEC:
+		return &DNSRDATANSEC{}
+	case DNSRRTypeDS:
+		return &DNSRDATADS{}
+	case DNSRRTypeOPT:
+		return &DNSRDATAOPT{}
 	default:
 		return &DNSRDATAUnknown{
 			RRType: rtype,
@@ -794,5 +804,83 @@ func (rdata *DNSRDATADS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) 
 	rdata.Algorithm = DNSSECAlgorithm(buffer[offset+2])
 	rdata.DigestType = DNSSECDigestType(buffer[offset+3])
 	copy(rdata.Digest, buffer[offset+4:rdEnd])
+	return rdEnd, nil
+}
+
+// DNSKEY RDATA 编码格式
+// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// +0 (MSB)                            +1 (LSB)
+// +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+// |                          OPTION-CODE                          |
+// +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+// |                         OPTION-LENGTH                         |
+// +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+// |                                                               |
+// /                          OPTION-DATA                          /
+// /                                                               /
+// +---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+
+type DNSRDATAOPT struct {
+	OptionCode   uint16
+	OptionLength uint16
+	OptionData   []byte
+}
+
+func (rdata *DNSRDATAOPT) Type() DNSType {
+	return DNSRRTypeOPT
+}
+
+func (rdata *DNSRDATAOPT) Size() int {
+	return 4 + len(rdata.OptionData)
+}
+
+func (rdata *DNSRDATAOPT) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Option Code: ", rdata.OptionCode,
+		"\nOption Length: ", rdata.OptionLength,
+		"\nOption Data: ", rdata.OptionData,
+	)
+}
+
+func (rdata *DNSRDATAOPT) Equal(rr DNSRRRDATA) bool {
+	rropt, ok := rr.(*DNSRDATAOPT)
+	if !ok {
+		return false
+	}
+	return rdata.OptionCode == rropt.OptionCode &&
+		rdata.OptionLength == rropt.OptionLength &&
+		bytes.Equal(rdata.OptionData, rropt.OptionData)
+}
+
+func (rdata *DNSRDATAOPT) Encode() []byte {
+	bytesArray := make([]byte, rdata.Size())
+	binary.BigEndian.PutUint16(bytesArray, rdata.OptionCode)
+	binary.BigEndian.PutUint16(bytesArray[2:], rdata.OptionLength)
+	copy(bytesArray[4:], rdata.OptionData)
+	return bytesArray
+}
+
+func (rdata *DNSRDATAOPT) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < rdata.Size() {
+		return -1, fmt.Errorf("method DNSRDATAOPT EncodeToBuffer failed: buffer length %d is less than OPT RDATA size %d", len(buffer), rdata.Size())
+	}
+	binary.BigEndian.PutUint16(buffer, rdata.OptionCode)
+	binary.BigEndian.PutUint16(buffer[2:], rdata.OptionLength)
+	copy(buffer[4:], rdata.OptionData)
+	return rdata.Size(), nil
+}
+
+func (rdata *DNSRDATAOPT) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	rdEnd := offset + rdLen
+	if rdLen < 4 {
+		return -1, fmt.Errorf("method DNSRDATAOPT DecodeFromBuffer failed: OPT RDATA size %d is less than 4", rdLen)
+	}
+	if len(buffer) < rdEnd {
+		return -1, fmt.Errorf("method DNSRDATAOPT DecodeFromBuffer failed: buffer length %d is less than offset %d + OPT RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	rdata.OptionCode = binary.BigEndian.Uint16(buffer[offset:])
+	rdata.OptionLength = binary.BigEndian.Uint16(buffer[offset+2:])
+	rdata.OptionData = make([]byte, rdLen-4)
+	copy(rdata.OptionData, buffer[offset+4:rdEnd])
 	return rdEnd, nil
 }
