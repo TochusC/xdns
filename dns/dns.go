@@ -156,8 +156,11 @@ func (dnsMessage *DNSMessage) String() string {
 		"### DNS Message ###\n",
 		dnsMessage.Header.String(), "\n",
 		dnsMessage.Question.String(),
+		"### Answer Section ###\n",
 		dnsMessage.Answer.String(),
+		"### Authority Section ###\n",
 		dnsMessage.Authority.String(),
+		"### Additional Section ###\n",
 		dnsMessage.Additional.String(),
 		"### DNS Message End ###",
 	)
@@ -494,7 +497,7 @@ func (section DNSQuestionSection) Size() int {
 // String 以“易读的形式”返回DNS消息 的 问题部分的字符串表示。
 // - 其返回值为 DNS消息 的 问题部分的字符串表示。
 func (section DNSQuestionSection) String() string {
-	var result string
+	result := "### DNS Question Section ###\n"
 	for _, question := range section {
 		result += question.String() + "\n"
 	}
@@ -606,7 +609,7 @@ func (responseSection DNSResponseSection) Size() int {
 
 // String 以“易读的形式”返回DNS响应部分的字符串表示。
 func (responseSection DNSResponseSection) String() string {
-	var result string
+	result := ""
 	for _, record := range responseSection {
 		result += record.String() + "\n"
 	}
@@ -684,8 +687,8 @@ func (rr *DNSResourceRecord) Size() int {
 // String 以*易读的形式*返回 DNS 资源记录的字符串表示。
 //   - 其返回值为 DNS 资源记录的字符串表示。
 func (rr *DNSResourceRecord) String() string {
-	if IsPersudoRR(rr) {
-		return NewPersudoRR(rr).String()
+	if IsPseudoRR(rr) {
+		return NewPseudoRR(rr).String()
 	}
 	return fmt.Sprint(
 		"### DNS Resource Record ###\n",
