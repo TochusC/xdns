@@ -3,18 +3,33 @@ package godns
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
+	"log"
 	"net"
+
+	"github.com/panjf2000/ants/v2"
 )
 
 // NetterConfig 结构体用于记录网络监听器的配置
 type NetterConfig struct {
-	Port int
-	MTU  int
+	Port      int
+	LogWriter io.Writer
 }
 
 // Netter 数据包监听器：接收、解析、发送数据包，并维护连接状态。
 type Netter struct {
-	Config NetterConfig
+	NetterPort   int
+	NetterPool   *ants.Pool
+	NetterLogger *log.Logger
+}
+
+func NewNetter(nConf NetterConfig, pool *ants.Pool) *Netter {
+	netterLogger := log.New(nConf.LogWriter, "Netter: ", log.LstdFlags)
+
+	return &Netter{
+		NetterPort:   nConf.Port,
+		NetterLogger: netterLogger,
+	}
 }
 
 // Sniff 函数用于监听指定端口，并返回链接信息通道
@@ -23,18 +38,18 @@ func (n *Netter) Sniff() chan ConnectionInfo {
 	connChan := make(chan ConnectionInfo)
 
 	// udp
-	pktConn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", n.Config.Port))
+	pktConn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", n.NetterPort))
 	if err != nil {
-		panic(fmt.Sprintln("Netter: Error listening on udp port: ", err))
+		n.NetterLogger.Panicf("Error listening on udp port: %v", err)
 	}
-	go n.handlePktConn(pktConn, connChan)
+	ants.Submit(func() { n.handlePktConn(pktConn, connChan) })
 
 	// tcp
-	lstr, err := net.Listen("tcp", fmt.Sprintf(":%d", n.Config.Port))
+	lstr, err := net.Listen("tcp", fmt.Sprintf(":%d", n.NetterPort))
 	if err != nil {
-		panic(fmt.Sprintln("Netter: Error listening on tcp port: ", err))
+		n.NetterLogger.Panicf("Error listening on tcp port: %v", err)
 	}
-	go n.handleListener(lstr, connChan)
+	ants.Submit(func() { n.handleListener(lstr, connChan) })
 
 	return connChan
 }
@@ -49,10 +64,10 @@ func (n *Netter) handleListener(lstr net.Listener, connChan chan ConnectionInfo)
 	for {
 		conn, err := lstr.Accept()
 		if err != nil {
-			fmt.Println("Netter: Error accepting tcp connection: ", err)
-			continue
+			n.NetterLogger.Printf("Error accepting tcp connection: %v", err)
+		} else {
+			ants.Submit(func() { n.handleStreamConn(conn, connChan) })
 		}
-		go n.handleStreamConn(conn, connChan)
 	}
 }
 
@@ -63,22 +78,22 @@ func (n *Netter) handleListener(lstr net.Listener, connChan chan ConnectionInfo)
 //
 // 该函数将会读取 数据包链接 中的数据，并将其发送到链接信息通道中
 func (n *Netter) handlePktConn(pktConn net.PacketConn, connChan chan ConnectionInfo) {
-	buf := make([]byte, n.Config.MTU)
-
+	buf := make([]byte, 65535)
 	for {
 		sz, addr, err := pktConn.ReadFrom(buf)
 		if err != nil {
-			fmt.Println("Netter: Error reading udp packet: ", err)
+			n.NetterLogger.Printf("Error reading udp packet: %v", err)
 			return
-		}
+		} else {
+			pkt := make([]byte, sz)
+			copy(pkt, buf[:sz])
 
-		pkt := make([]byte, sz)
-		copy(pkt, buf[:sz])
-		connChan <- ConnectionInfo{
-			Protocol:   ProtocolUDP,
-			Address:    addr,
-			PacketConn: pktConn,
-			Packet:     pkt,
+			connChan <- ConnectionInfo{
+				Protocol:   ProtocolUDP,
+				Address:    addr,
+				PacketConn: pktConn,
+				Packet:     pkt,
+			}
 		}
 	}
 }
@@ -90,11 +105,11 @@ func (n *Netter) handlePktConn(pktConn net.PacketConn, connChan chan ConnectionI
 //
 // 该函数将会读取 流式链接 中的数据，并将其发送到链接信息通道中
 func (n *Netter) handleStreamConn(conn net.Conn, connChan chan ConnectionInfo) {
-	buf := make([]byte, n.Config.MTU)
+	buf := make([]byte, 65535)
 
 	sz, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("Netter: Error reading tcp packet: ", err)
+		n.NetterLogger.Printf("Error reading tcp packet: %v", err)
 		return
 	}
 
@@ -102,8 +117,8 @@ func (n *Netter) handleStreamConn(conn net.Conn, connChan chan ConnectionInfo) {
 	for sz < msgSz {
 		inc, err := conn.Read(buf[sz:])
 		if err != nil {
-			fmt.Println("Netter: Error reading tcp packet: ", err)
-			return
+			n.NetterLogger.Printf("Error reading tcp packet: %v", err)
+			break
 		}
 		sz += inc
 	}
@@ -161,15 +176,13 @@ func (n *Netter) Send(connInfo ConnectionInfo, data []byte) {
 	if connInfo.Protocol == ProtocolUDP {
 		_, err := connInfo.PacketConn.WriteTo(data, connInfo.Address)
 		if err != nil {
-			fmt.Println("Netter: Error writing udp packet: ", err)
+			n.NetterLogger.Printf("Error writing udp packet: %v", err)
 		}
-	}
-
-	if connInfo.Protocol == ProtocolTCP {
+	} else if connInfo.Protocol == ProtocolTCP {
 		pktSize := len(data)
 		if pktSize > 0xffff {
 			pktSize = 0xffff
-			fmt.Printf("Netter: Warning: packet size exceeds 0xffff, truncating to 0xffff\n")
+			n.NetterLogger.Printf("Warning: TCP packet size exceeds 0xffff, truncating to 0xffff")
 		}
 
 		lenByte := make([]byte, 2)
@@ -178,4 +191,6 @@ func (n *Netter) Send(connInfo ConnectionInfo, data []byte) {
 		connInfo.StreamConn.Write(append(lenByte, data...))
 		connInfo.StreamConn.Close()
 	}
+
+	n.NetterLogger.Printf("Packet sent to %s, size: %d", connInfo.Address, len(data))
 }

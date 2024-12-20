@@ -23,7 +23,7 @@ type Responser interface {
 	// 返回值为：
 	//   - ResponseInfo，DNS 回复信息
 	//   - error，错误信息
-	Response(ConnectionInfo) (dns.DNSMessage, error)
+	Response(ConnectionInfo) ([]byte, error)
 }
 
 // DullResponser 是一个"笨笨的" 回复器实现。
@@ -34,11 +34,11 @@ type DullResponser struct {
 
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
 // DullResponser 会回复所查询名称的 A 记录，地址指向服务器的 IP 地址。
-func (d *DullResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, error) {
+func (d *DullResponser) Response(connInfo ConnectionInfo) ([]byte, error) {
 	// 解析查询信息
 	qry, err := ParseQuery(connInfo)
 	if err != nil {
-		return dns.DNSMessage{}, err
+		return []byte{}, err
 	}
 
 	// 初始化 NXDOMAIN 回复信息
@@ -65,7 +65,7 @@ func (d *DullResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, error
 	}
 	// 修正计数字段，返回回复信息
 	FixCount(&resp)
-	return resp, nil
+	return resp.Encode(), nil
 }
 
 // 下面是一些可能会很有用的工具函数及结构体，
@@ -82,13 +82,8 @@ func ParseQuery(connInfo ConnectionInfo) (dns.DNSMessage, error) {
 	qry := dns.DNSMessage{}
 	_, err := qry.DecodeFromBuffer(connInfo.Packet, 0)
 	if err != nil {
-		fmt.Printf("[%s]Responser: Error decoding DNS query: %s\n", time.Now().UTC().String(), err)
-		return dns.DNSMessage{}, err
+		return dns.DNSMessage{}, fmt.Errorf("Error decoding query: %v", err)
 	}
-	fmt.Printf("[%s]Responser: Recive DNS Query from %s,Protocol: %s,  QName: %s, QType: %s\n",
-		time.Now().UTC().String(), connInfo.Address.String(), connInfo.Protocol.String(),
-		qry.Question[0].Name, qry.Question[0].Type.String())
-
 	return qry, nil
 }
 
@@ -176,11 +171,6 @@ type DNSSECResponser struct {
 
 type DNSSECManager interface {
 	EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage)
-	SignSection(section []dns.DNSResourceRecord) []dns.DNSResourceRecord
-	SignRRSet(rrset []dns.DNSResourceRecord) dns.DNSResourceRecord
-	EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) error
-	GetDNSSECMaterial(zName string) DNSSECMaterial
-	CreateDNSSECMaterial(zName string) DNSSECMaterial
 }
 
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
