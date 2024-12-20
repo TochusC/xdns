@@ -2,7 +2,7 @@ package dns
 
 import "testing"
 
-func TestPersudoRRString(t *testing.T) {
+func TestPseudoRRString(t *testing.T) {
 	rdata := DNSRDATAOPT{
 		OptionCode:   0,
 		OptionLength: 4,
@@ -14,6 +14,6 @@ func TestPersudoRRString(t *testing.T) {
 		&rdata,
 	)
 
-	prr := NewPersudoRR(rr)
-	t.Logf("PersudoRR String():\n%s", prr.String())
+	prr := NewPseudoRR(rr)
+	t.Logf("PseudoRR String():\n%s", prr.String())
 }

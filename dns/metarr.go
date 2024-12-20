@@ -5,17 +5,55 @@ import (
 	"fmt"
 )
 
-var PersudoRRType = map[DNSType]interface{}{
+var PseudoRRType = map[DNSType]interface{}{
 	DNSRRTypeOPT: nil,
 }
 
-func IsPersudoRR(rr *DNSResourceRecord) bool {
-	_, ok := PersudoRRType[rr.Type]
+func IsPseudoRR(rr *DNSResourceRecord) bool {
+	_, ok := PseudoRRType[rr.Type]
 	return ok
+}
+
+// NewDNSRROPT creates a new DNS Resource Record OPT
+func NewDNSRROPT(udpsize int, ttl int, rdata *DNSRDATAOPT) *DNSResourceRecord {
+	return &DNSResourceRecord{
+		Name:  ".",
+		Type:  41,
+		Class: DNSClass(udpsize),
+		TTL:   uint32(ttl),
+		RDLen: uint16(rdata.Size()),
+		RData: rdata,
+	}
+}
+
+type PseudoRR interface {
+	String() string
+}
+
+func NewPseudoRR(rr *DNSResourceRecord) PseudoRR {
+	switch rr.Type {
+	case DNSRRTypeOPT:
+		return &DNSRROPT{rr}
+	default:
+		return nil
+	}
 }
 
 // DNSRROPT is a DNS Resource Record OPT
 // See RFC 6891
+//  +------------+--------------+------------------------------+
+//  | Field Name | Field Type   | Description                  |
+//  +------------+--------------+------------------------------+
+//  | NAME       | domain name  | MUST be 0 (root domain)      |
+//  | TYPE       | u_int16_t    | OPT (41)                     |
+//  | CLASS      | u_int16_t    | requestor’s UDP payload size |
+//  | TTL        | u_int32_t    | extended RCODE and flags     |
+//  | RDLEN      | u_int16_t    | length of all RDATA          |
+//  | RDATA      | octet stream | {attribute,value} pairs      |
+//  +------------+--------------+------------------------------+
+type DNSRROPT struct {
+	rr *DNSResourceRecord
+}
 
 // SetDNSRROPTTTL sets the TTL of the OPT RR
 // The TTL is encoded as follows:
@@ -36,35 +74,6 @@ func SetDNSRROPTTTL(ercode int, version int, do bool, z int) uint32 {
 	return binary.BigEndian.Uint32(ttl[:])
 }
 
-// NewDNSRROPT creates a new DNS Resource Record OPT
-func NewDNSRROPT(udpsize int, ttl int, rdata *DNSRDATAOPT) *DNSResourceRecord {
-	return &DNSResourceRecord{
-		Name:  ".",
-		Type:  41,
-		Class: DNSClass(udpsize),
-		TTL:   uint32(ttl),
-		RDLen: uint16(rdata.Size()),
-		RData: rdata,
-	}
-}
-
-type PersudoRR interface {
-	String() string
-}
-
-func NewPersudoRR(rr *DNSResourceRecord) PersudoRR {
-	switch rr.Type {
-	case DNSRRTypeOPT:
-		return &DNSRROPT{rr}
-	default:
-		return nil
-	}
-}
-
-type DNSRROPT struct {
-	rr *DNSResourceRecord
-}
-
 func (opt *DNSRROPT) String() string {
 	rr := opt.rr
 	ttl := rr.TTL
@@ -76,7 +85,7 @@ func (opt *DNSRROPT) String() string {
 	z := int(ttl & 0x7fff)
 
 	return fmt.Sprint(
-		"### Persudo Rersouce Record OPT ###\n",
+		"### Pseudo Rersouce Record OPT ###\n",
 		"UDP Payload Size:", int(rr.Class), "\n",
 		"Extended RCODE:", ercode, "\n",
 		"Version:", version, "\n",

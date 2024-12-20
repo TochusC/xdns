@@ -144,12 +144,13 @@ func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdata.Size(), nil
 }
 
-func (rdata *DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
-	if len(buffer) < offset+rdata.Size() {
+func (rdata *DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset, rdLen int) (int, error) {
+	if len(buffer) < offset+rdLen {
 		return -1, fmt.Errorf("method DNSRDATAUnknown DecodeFromBuffer failed: buffer length %d is less than offset %d + Unknown RDATA size %d", len(buffer), offset, rdata.Size())
 	}
-	rdata.RData = buffer[offset:]
-	return offset + rdata.Size(), nil
+	rdata.RData = make([]byte, rdLen)
+	copy(rdata.RData, buffer[offset:offset+rdLen])
+	return offset + rdLen, nil
 }
 
 // A RDATA 编码格式
