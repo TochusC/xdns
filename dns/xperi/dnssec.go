@@ -423,7 +423,7 @@ func GenerateRandomRRRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorit
 	return rr
 }
 
-func GenerateRandomRDATADS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSRDATADS {
+func GenerateRandomRDATADS(oName string, keytag int, algo dns.DNSSECAlgorithm, dType dns.DNSSECDigestType) dns.DNSRDATADS {
 	rText := []byte(GenerateRandomString(96))
 	var digest []byte
 	switch dType {
@@ -442,15 +442,15 @@ func GenerateRandomRDATADS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DN
 
 	// 4. 构建 DS RDATA
 	return dns.DNSRDATADS{
-		KeyTag:     CalculateKeyTag(kRDATA),
-		Algorithm:  kRDATA.Algorithm,
+		KeyTag:     uint16(keytag),
+		Algorithm:  algo,
 		DigestType: dType,
 		Digest:     digest[:],
 	}
 }
 
-func GenerateRandomRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSResourceRecord {
-	rdata := GenerateRandomRDATADS(oName, kRDATA, dType)
+func GenerateRandomRRDS(oName string, keytag int, algo dns.DNSSECAlgorithm, dType dns.DNSSECDigestType) dns.DNSResourceRecord {
+	rdata := GenerateRandomRDATADS(oName, keytag, algo, dType)
 	rr := dns.DNSResourceRecord{
 		Name:  oName,
 		Type:  dns.DNSRRTypeDS,

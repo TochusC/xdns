@@ -8,9 +8,11 @@
 package godns
 
 import (
-	"fmt"
+	"io"
+	"log"
 	"net"
-	"time"
+
+	"github.com/panjf2000/ants/v2"
 )
 
 // GoDNSServer 表示 GoDNS 服务器
@@ -19,52 +21,76 @@ import (
 //   - Sniffer: 数据包嗅探器
 //   - Handler: 数据包处理器
 type GoDNSServer struct {
-	ServerConfig DNSServerConfig
-	Netter       Netter
-	Responer     Responser
+	SeverConfig DNSServerConfig
+	// GoDNS 服务器的日志
+	GoDNSLogger *log.Logger
+
+	ThreadPool *ants.Pool
+
+	Netter   Netter
+	Cacher   Cacher
+	Responer Responser
+}
+
+func NewGoDNSServer(serverConf DNSServerConfig, responser Responser) *GoDNSServer {
+	godnsLogger := log.New(serverConf.LogWriter, "GoDNS: ", log.LstdFlags)
+	pool, err := ants.NewPool(serverConf.PoolCapcity)
+	if err != nil {
+		godnsLogger.Panicf("Error creating ants pool: %v", err)
+	}
+
+	netter := NewNetter(NetterConfig{
+		Port:      serverConf.Port,
+		LogWriter: serverConf.LogWriter,
+	}, pool)
+
+	cacher := NewCacher(CacherConfig{
+		CacheLocation: serverConf.CacheLocation,
+		LogWriter:     serverConf.LogWriter,
+	}, pool)
+
+	return &GoDNSServer{
+		SeverConfig: serverConf,
+		GoDNSLogger: godnsLogger,
+
+		ThreadPool: pool,
+
+		Netter:   *netter,
+		Cacher:   *cacher,
+		Responer: responser,
+	}
+}
+
+func (s *GoDNSServer) HandleConnection(connInfo ConnectionInfo) {
+	// 从缓存中查找响应
+	if s.SeverConfig.EnebleCache {
+		cache, err := s.Cacher.FetchCache(connInfo)
+		if err == nil {
+			s.Netter.Send(connInfo, cache)
+			return
+		}
+	}
+	resp, err := s.Responer.Response(connInfo)
+	if err != nil {
+		s.GoDNSLogger.Printf("Error generating response: %v", err)
+		return
+	}
+
+	s.Netter.Send(connInfo, resp)
+	if s.SeverConfig.EnebleCache {
+		s.Cacher.CacheResponse(resp)
+	}
 }
 
 // Start 启动 GoDNS 服务器
 func (s *GoDNSServer) Start() {
 	// GoDNS 启动！
-	fmt.Printf("%s : %s\n", time.Now().Format(time.ANSIC), "GoDNS Starts!")
+	s.GoDNSLogger.Printf("GoDNS Starts!")
 
 	connChan := s.Netter.Sniff()
 	for connInfo := range connChan {
-		resp, err := s.Responer.Response(connInfo)
-		if err != nil {
-			fmt.Println("GoDNS: Error generating response: ", err)
-			continue
-		}
-		s.Netter.Send(connInfo, resp.Encode())
+		s.ThreadPool.Submit(func() { s.HandleConnection(connInfo) })
 	}
-	for {
-		time.Sleep(1 * time.Second)
-	}
-}
-
-// GoStart为示例函数，其将会一键式创建一个基础 GoDNS 并启动它。
-// 这个 GoDNS 将有一个DullResponser，它将对DNS请求做出简单的回复...
-// 参数：
-//   - DNSServerConfig: DNS 服务器配置
-//   - Responser: DNS 回复生成器
-func GoStart(serverConf DNSServerConfig) {
-	// 创建一个 DNS 服务器
-	server := &GoDNSServer{
-		ServerConfig: serverConf,
-		Netter: Netter{
-			Config: NetterConfig{
-				Port: serverConf.Port,
-				MTU:  serverConf.MTU,
-			},
-		},
-		Responer: &DullResponser{
-			ServerConf: serverConf,
-		},
-	}
-
-	// 启动 DNS 服务器
-	server.Start()
 }
 
 // DNSServerConfig 记录 DNS 服务器的相关配置
@@ -73,6 +99,14 @@ type DNSServerConfig struct {
 	IP net.IP
 	// DNS 服务器的端口
 	Port int
-	// 网络设备的最大传输单元
-	MTU int
+
+	// 日志输出
+	LogWriter io.Writer
+
+	// 线程池容量
+	PoolCapcity int
+
+	// 缓存功能
+	EnebleCache   bool
+	CacheLocation string
 }
