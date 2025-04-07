@@ -18,7 +18,7 @@ import (
 //   - ServerConfig: DNS 服务器配置
 //   - Sniffer: 数据包嗅探器
 //   - Handler: 数据包处理器
-type xdnsServer struct {
+type XdnsServer struct {
 	SeverConfig DNSServerConfig
 	// xdns 服务器的日志
 	xdnsLogger *log.Logger
