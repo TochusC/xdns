@@ -1,41 +1,41 @@
-# GoDNS
+# xdns
 
-[![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange&style=flat-square)](https://github.com/TochusC/godns)
-![Go Version](https://img.shields.io/github/go-mod/go-version/tochusc/godns/master?filename=go.mod&style=flat-square)
-![Latest Version](https://img.shields.io/github/v/tag/tochusc/godns?label=latest&style=flat-square)
-![License](https://img.shields.io/github/license/tochusc/godns?style=flat-square)
-[![GoDoc](https://godoc.org/github.com/tochusc/godns?status.svg)](https://godoc.org/github.com/tochusc/godns)
+[![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange&style=flat-square)](https://github.com/TochusC/xdns)
+![Go Version](https://img.shields.io/github/go-mod/go-version/tochusc/xdns/master?filename=go.mod&style=flat-square)
+![Latest Version](https://img.shields.io/github/v/tag/tochusc/xdns?label=latest&style=flat-square)
+![License](https://img.shields.io/github/license/tochusc/xdns?style=flat-square)
+[![GoDoc](https://godoc.org/github.com/tochusc/xdns?status.svg)](https://godoc.org/github.com/tochusc/xdns)
 
 [简体中文](README.md) | [English](docs/en/README.md)
 
-GoDNS 是一个快速、灵活的**实验用** DNS 服务器，旨在帮助开发者和研究人员探索和实验 DNS 协议的各种特性。
+xdns 是一个快速、灵活的**实验用** DNS 服务器，旨在帮助开发者和研究人员探索和实验 DNS 协议的各种特性。
 
 ## 目录
 
-- [GoDNSServer](#godnsserver)
+- [xdnsServer](#xdnsserver)
 - [示例](#示例)
 - [构造和生成 DNS 回复](#构造和生成-dns-回复)
 - [dns 包](#dns-包)
 - [xlayers 子包](#xlayers-子包)
 - [xperi 子包](#xperi-子包)
 
-## GoDNSServer
+## xdnsServer
 
-`GoDNSServer` 是对 DNS 服务器的最顶层封装, 其由三部分组成：
+`xdnsServer` 是对 DNS 服务器的最顶层封装, 其由三部分组成：
 
 1. **ServerConfig**: DNS 服务器配置。
 2. **Netter**: 数据包处理器：接收、解析、发送数据包，并维护连接状态。
 3. **Responser**: DNS回复器：响应、解析、构造DNS回复
 
 ```go
-type GoDNSServer struct {
+type xdnsServer struct {
     ServerConfig DNSServerConfig
     Netter       Netter
     Responer     Responser
 }
 
-// GoDNSServer 启动！
-func (s *GoDNSServer) Start()
+// xdnsServer 启动！
+func (s *xdnsServer) Start()
 ```
 
 ### Netter
@@ -84,14 +84,14 @@ type Responser interface { // size=16 (0x10)
 
 ## 示例
 
-通过下述几行代码，可以一键启动一个基础的 GoDNS 服务器：
+通过下述几行代码，可以一键启动一个基础的 xdns 服务器：
 
 ```go
 // 创建一个 DNS 服务器
-server := godns.GoDNSServer{
+server := xdns.xdnsServer{
     ServerConfig: sConf,
-    Netter: godns.Netter{
-        Config: godns.NetterConfig{
+    Netter: xdns.Netter{
+        Config: xdns.NetterConfig{
         Port: sConf.Port,
             MTU:  sConf.MTU,
         },
@@ -183,4 +183,4 @@ func (s *struct) Equal(other *struct) bool
 
 ---
 
-如需更多信息或支持，请访问我们的 [GitHub 页面](https://github.com/TochusC/godns)。
+如需更多信息或支持，请访问我们的 [GitHub 页面](https://github.com/TochusC/xdns)。

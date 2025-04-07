@@ -6,9 +6,14 @@ package dns
 
 import (
 	"bytes"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base32"
 	"encoding/binary"
 	"fmt"
 	"net"
+	"sort"
 )
 
 // DNSRRRDATA 接口表示 DNS 资源记录的 RDATA 部分,
@@ -83,16 +88,6 @@ func DNSRRRDATAFactory(rtype DNSType) DNSRRRDATA {
 		return &DNSRDATACNAME{}
 	case DNSRRTypeTXT:
 		return &DNSRDATATXT{}
-	case DNSRRTypeRRSIG:
-		return &DNSRDATARRSIG{}
-	case DNSRRTypeDNSKEY:
-		return &DNSRDATADNSKEY{}
-	case DNSRRTypeNSEC:
-		return &DNSRDATANSEC{}
-	case DNSRRTypeDS:
-		return &DNSRDATADS{}
-	case DNSRRTypeOPT:
-		return &DNSRDATAOPT{}
 	default:
 		return &DNSRDATAUnknown{
 			RRType: rtype,
@@ -144,13 +139,12 @@ func (rdata *DNSRDATAUnknown) EncodeToBuffer(buffer []byte) (int, error) {
 	return rdata.Size(), nil
 }
 
-func (rdata *DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset, rdLen int) (int, error) {
-	if len(buffer) < offset+rdLen {
+func (rdata *DNSRDATAUnknown) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	if len(buffer) < offset+rdata.Size() {
 		return -1, fmt.Errorf("method DNSRDATAUnknown DecodeFromBuffer failed: buffer length %d is less than offset %d + Unknown RDATA size %d", len(buffer), offset, rdata.Size())
 	}
-	rdata.RData = make([]byte, rdLen)
-	copy(rdata.RData, buffer[offset:offset+rdLen])
-	return offset + rdLen, nil
+	rdata.RData = buffer[offset:]
+	return offset + rdata.Size(), nil
 }
 
 // A RDATA 编码格式
@@ -339,6 +333,155 @@ func (rdata *DNSRDATACNAME) DecodeFromBuffer(buffer []byte, offset int, rdLen in
 	if err != nil {
 		return -1, fmt.Errorf("method DNSRDATACNAME DecodeFromBuffer failed: decode CNAME failed.\n%v", err)
 	}
+	return offset, nil
+}
+
+// SOA RDATA 编码格式
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// /                     MNAME                     /
+// /                                               /
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// /                     RNAME                     /
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    SERIAL                     |
+// |                                               |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    REFRESH                    |
+// |                                               |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                     RETRY                     |
+// |                                               |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    EXPIRE                     |
+// |                                               |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+// |                    MINIMUM                    |
+// |                                               |
+// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+type DNSRDATASOA struct {
+	// <domain-name> MNAME
+	MName string
+	// <domain-name> RNAME
+	RName string
+	// <serial-number> SERIAL
+	Serial uint32
+	// <refresh-interval> REFRESH
+	Refresh uint32
+	// <retry-interval> RETRY
+	Retry uint32
+	// <expire-limit> EXPIRE
+	Expire uint32
+	// <minimum> MINIMUM
+	Minimum uint32
+}
+
+func (rdata *DNSRDATASOA) Type() DNSType {
+	return DNSRRTypeSOA
+}
+
+func (rdata *DNSRDATASOA) Size() int {
+	return GetDomainNameWireLen(&rdata.MName) +
+		GetDomainNameWireLen(&rdata.RName) +
+		4*5 // 4 bytes for each of SERIAL, REFRESH, RETRY, EXPIRE, MINIMUM
+}
+
+func (rdata *DNSRDATASOA) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"MName: ", rdata.MName,
+		"\nRName: ", rdata.RName,
+		"\nSerial: ", rdata.Serial,
+		"\nRefresh: ", rdata.Refresh,
+		"\nRetry: ", rdata.Retry,
+		"\nExpire: ", rdata.Expire,
+		"\nMinimum: ", rdata.Minimum,
+	)
+}
+
+func (rdata *DNSRDATASOA) Equal(rr DNSRRRDATA) bool {
+	rrsoa, ok := rr.(*DNSRDATASOA)
+	if !ok {
+		return false
+	}
+	return rdata.MName == rrsoa.MName &&
+		rdata.RName == rrsoa.RName &&
+		rdata.Serial == rrsoa.Serial &&
+		rdata.Refresh == rrsoa.Refresh &&
+		rdata.Retry == rrsoa.Retry &&
+		rdata.Expire == rrsoa.Expire &&
+		rdata.Minimum == rrsoa.Minimum
+}
+
+func (rdata *DNSRDATASOA) Encode() []byte {
+	bytesArray := make([]byte, rdata.Size())
+	offset := 0
+	nLen, err := EncodeDomainNameToBuffer(&rdata.MName, bytesArray[offset:])
+	if err != nil {
+		panic(fmt.Sprintf("method DNSRDATASOA Encode failed: encode MName failed.\n%v", err))
+	}
+	offset += nLen
+	nLen, err = EncodeDomainNameToBuffer(&rdata.RName, bytesArray[offset:])
+	offset += nLen
+	if err != nil {
+		panic(fmt.Sprintf("method DNSRDATASOA Encode failed: encode RName failed.\n%v", err))
+	}
+	binary.BigEndian.PutUint32(bytesArray[offset+4:], rdata.Serial)
+	binary.BigEndian.PutUint32(bytesArray[offset+8:], rdata.Refresh)
+	binary.BigEndian.PutUint32(bytesArray[offset+12:], rdata.Retry)
+	binary.BigEndian.PutUint32(bytesArray[offset+16:], rdata.Expire)
+	binary.BigEndian.PutUint32(bytesArray[offset+20:], rdata.Minimum)
+	return bytesArray
+}
+
+func (rdata *DNSRDATASOA) EncodeToBuffer(buffer []byte) (int, error) {
+	if len(buffer) < 20 {
+		return -1, fmt.Errorf("method DNSRDATASOA EncodeToBuffer failed: buffer length %d is less than SOA RDATA size %d", len(buffer), rdata.Size())
+	}
+	offset := 0
+	nLen, err := EncodeDomainNameToBuffer(&rdata.MName, buffer[offset:])
+	offset += nLen
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATASOA EncodeToBuffer failed: encode MName failed.\n%v", err)
+	}
+	nLen, err = EncodeDomainNameToBuffer(&rdata.RName, buffer[offset:])
+	offset += nLen
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATASOA EncodeToBuffer failed: encode RName failed.\n%v", err)
+	}
+	binary.BigEndian.PutUint32(buffer[offset:], rdata.Serial)
+	binary.BigEndian.PutUint32(buffer[offset+4:], rdata.Refresh)
+	binary.BigEndian.PutUint32(buffer[offset+8:], rdata.Retry)
+	binary.BigEndian.PutUint32(buffer[offset+12:], rdata.Expire)
+	binary.BigEndian.PutUint32(buffer[offset+16:], rdata.Minimum)
+	return offset + 20, nil
+}
+
+func (rdata *DNSRDATASOA) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	var err error
+	nLen := 0
+
+	rdata.MName, nLen, err = DecodeDomainNameFromBuffer(buffer, offset)
+	offset += nLen
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATASOA DecodeFromBuffer failed: decode MName failed.\n%v", err)
+	}
+
+	rdata.RName, nLen, err = DecodeDomainNameFromBuffer(buffer, offset)
+	offset += nLen
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATASOA DecodeFromBuffer failed: decode RName failed.\n%v", err)
+	}
+
+	rdata.Serial = binary.BigEndian.Uint32(buffer[offset : offset+4])
+	offset += 4
+	rdata.Refresh = binary.BigEndian.Uint32(buffer[offset : offset+4])
+	offset += 4
+	rdata.Retry = binary.BigEndian.Uint32(buffer[offset : offset+4])
+	offset += 4
+	rdata.Expire = binary.BigEndian.Uint32(buffer[offset : offset+4])
+	offset += 4
+	rdata.Minimum = binary.BigEndian.Uint32(buffer[offset : offset+4])
+	offset += 4
 	return offset, nil
 }
 
@@ -637,86 +780,6 @@ func (rdata *DNSRDATADNSKEY) DecodeFromBuffer(buffer []byte, offset int, rdLen i
 	return rdEnd, nil
 }
 
-// NSEC RDATA 编码格式
-// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
-// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// |                       Next Domain Name                        |
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// |                        Type Bit Maps                          |
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-// DNSRDATANSEC 结构体表示 NSEC 类型的 DNS 资源记录的 RDATA 部分。
-// 其包含以下字段：
-//   - NextDomainName: 下一个域名。
-//   - TypeBitMaps: 类型位图。
-//
-// RFC 4034 2.1 节 定义了 NSEC 类型的 DNS 资源记录的 RDATA 部分的编码格式。
-// 其 Type 值为 47。
-type DNSRDATANSEC struct {
-	NextDomainName string
-	// Type Bit Maps Field = ( Window Block # | Bitmap Length | Bitmap )+
-	TypeBitMaps []byte
-}
-
-func (rdata *DNSRDATANSEC) Type() DNSType {
-	return DNSRRTypeNSEC
-}
-
-func (rdata *DNSRDATANSEC) Size() int {
-	return GetDomainNameWireLen(&rdata.NextDomainName) + len(rdata.TypeBitMaps)
-}
-
-func (rdata *DNSRDATANSEC) String() string {
-	return fmt.Sprint(
-		"### RDATA Section ###\n",
-		"Next Domain Name: ", rdata.NextDomainName,
-		"\nType Bit Maps: ", rdata.TypeBitMaps,
-	)
-}
-
-func (rdata *DNSRDATANSEC) Equal(rr DNSRRRDATA) bool {
-	rrnsec, ok := rr.(*DNSRDATANSEC)
-	if !ok {
-		return false
-	}
-	return rdata.NextDomainName == rrnsec.NextDomainName &&
-		bytes.Equal(rdata.TypeBitMaps, rrnsec.TypeBitMaps)
-}
-
-func (rdata *DNSRDATANSEC) Encode() []byte {
-	bytesArray := make([]byte, rdata.Size())
-	offset, _ := EncodeDomainNameToBuffer(&rdata.NextDomainName, bytesArray)
-	copy(bytesArray[offset:], rdata.TypeBitMaps)
-	return bytesArray
-}
-
-func (rdata *DNSRDATANSEC) EncodeToBuffer(buffer []byte) (int, error) {
-	if len(buffer) < rdata.Size() {
-		return -1, fmt.Errorf("buffer length %d is less than NSEC RDATA size %d", len(buffer), rdata.Size())
-	}
-	offset, err := EncodeDomainNameToBuffer(&rdata.NextDomainName, buffer)
-	if err != nil {
-		return -1, fmt.Errorf("method DNSRDATANSEC EncodeToBuffer failed: encode NSEC Next Domain Name failed.\n%v", err)
-	}
-	copy(buffer[offset:], rdata.TypeBitMaps)
-	return rdata.Size(), nil
-}
-
-func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
-	var err error
-	var rdEnd = offset + rdLen
-	if len(buffer) < rdEnd {
-		return -1, fmt.Errorf("method DNSRDATANSEC DecodeFromBuffer failed: buffer length %d is less than offset %d + NSEC RDATA size %d", len(buffer), offset, rdata.Size())
-	}
-	rdata.NextDomainName, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
-	if err != nil {
-		return -1, fmt.Errorf("method DNSRDATANSEC DecodeFromBuffer failed: decode NSEC Next Domain Name failed.\n%v", err)
-	}
-	copy(rdata.TypeBitMaps, buffer[offset:rdEnd])
-	return rdEnd, nil
-}
-
 // DS RDATA 编码格式
 // 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
 // 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -805,6 +868,404 @@ func (rdata *DNSRDATADS) DecodeFromBuffer(buffer []byte, offset int, rdLen int) 
 	rdata.Algorithm = DNSSECAlgorithm(buffer[offset+2])
 	rdata.DigestType = DNSSECDigestType(buffer[offset+3])
 	copy(rdata.Digest, buffer[offset+4:rdEnd])
+	return rdEnd, nil
+}
+
+// NSEC RDATA 编码格式
+// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// /                       Next Domain Name                        /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// /                        Type Bit Maps                          /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+// DNSRDATANSEC 结构体表示 NSEC 类型的 DNS 资源记录的 RDATA 部分。
+// 其包含以下字段：
+//   - NextDomainName: 下一个域名。
+//   - TypeBitMaps: 类型位图。
+//
+// RFC 4034 2.1 节 定义了 NSEC 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// 其 Type 值为 47。
+type DNSRDATANSEC struct {
+	NextDomainName string
+	// Type Bit Maps Field = ( Window Block # | Bitmap Length | Bitmap )+
+	TypeBitMaps []DNSType
+}
+
+func (rdata *DNSRDATANSEC) Type() DNSType {
+	return DNSRRTypeNSEC
+}
+
+func (rdata *DNSRDATANSEC) Size() int {
+	return GetDomainNameWireLen(&rdata.NextDomainName) + len(EncodeTypeBitMaps(rdata.TypeBitMaps))
+}
+
+func (rdata *DNSRDATANSEC) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Next Domain Name: ", rdata.NextDomainName,
+		"\nType Bit Maps: ", rdata.TypeBitMaps,
+	)
+}
+
+func EncodeTypeBitMaps(typeList []DNSType) []byte {
+	var bytesArray []byte
+
+	numericalList := make([]int, 0)
+	for _, t := range typeList {
+		numericalList = append(numericalList, int(t))
+	}
+	sort.Ints(numericalList)
+
+	type bitMap struct {
+		index  uint8
+		length uint8
+		bits   []byte
+	}
+	var typeBitMaps []bitMap
+
+	tBitMap := bitMap{
+		index:  0,
+		length: 0,
+		bits:   []byte{},
+	}
+
+	for _, t := range numericalList {
+		if tBitMap.index < uint8(t/256) {
+			if tBitMap.length > 0 {
+				typeBitMaps = append(typeBitMaps, tBitMap)
+			}
+			tBitMap = bitMap{
+				index:  uint8(t / 256),
+				length: 0,
+				bits:   []byte{},
+			}
+		}
+		var temp []byte
+		z := int(t) / 8
+
+		for i := 0; i < z; i++ {
+			temp = append(temp, 0)
+		}
+		temp = append(temp, 0x80>>(t%8))
+
+		for i := 1; i <= len(temp); i++ {
+			if i > int(tBitMap.length) {
+				tBitMap.bits = append(tBitMap.bits, temp[i-1])
+			} else {
+				tBitMap.bits[i-1] |= temp[i-1]
+			}
+		}
+
+		tBitMap.length = uint8(z + 1)
+	}
+	if tBitMap.length > 0 {
+		typeBitMaps = append(typeBitMaps, tBitMap)
+	}
+
+	for _, t := range typeBitMaps {
+		bytesArray = append(bytesArray, t.index)
+		bytesArray = append(bytesArray, t.length)
+		bytesArray = append(bytesArray, t.bits...)
+	}
+
+	return bytesArray
+}
+
+func (rdata *DNSRDATANSEC) Equal(rr DNSRRRDATA) bool {
+	rrnsec, ok := rr.(*DNSRDATANSEC)
+	if !ok {
+		return false
+	}
+
+	typeList := make([]int, 0)
+	sort.Ints(typeList)
+
+	for _, t := range rdata.TypeBitMaps {
+		typeList = append(typeList, int(t))
+	}
+
+	rrTypeList := make([]int, 0)
+	for _, t := range rrnsec.TypeBitMaps {
+		rrTypeList = append(rrTypeList, int(t))
+	}
+	sort.Ints(rrTypeList)
+
+	if len(typeList) != len(rrTypeList) {
+		return false
+	}
+	for i := 0; i < len(typeList); i++ {
+		if typeList[i] != rrTypeList[i] {
+			return false
+		}
+	}
+
+	return rdata.NextDomainName == rrnsec.NextDomainName
+}
+
+// Encode 方法将 NSEC RDATA 编码为字节切片。
+func (rdata *DNSRDATANSEC) Encode() []byte {
+	nextDomainName := EncodeDomainName(&rdata.NextDomainName)
+	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+	bytesArray := make([]byte, len(nextDomainName)+len(typeBitMaps))
+	copy(bytesArray, nextDomainName)
+	copy(bytesArray[len(nextDomainName):], typeBitMaps)
+	return bytesArray
+}
+
+func (rdata *DNSRDATANSEC) EncodeToBuffer(buffer []byte) (int, error) {
+	nextDomainName := EncodeDomainName(&rdata.NextDomainName)
+	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+	size := len(nextDomainName) + len(typeBitMaps)
+	if len(buffer) < size {
+		return -1, fmt.Errorf("buffer length %d is less than NSEC RDATA size %d", len(buffer), rdata.Size())
+	}
+	copy(buffer, nextDomainName)
+	copy(buffer[len(nextDomainName):], typeBitMaps)
+	return rdata.Size(), nil
+}
+
+func DecodeTypeBitMaps(typeBitMaps []byte) []DNSType {
+	var typeList []DNSType
+	for i := 0; i < len(typeBitMaps); {
+		index := int(typeBitMaps[i])
+		length := int(typeBitMaps[i+1])
+		for j := 0; j < int(length); j++ {
+			for k := 0; k < 8; k++ {
+				if typeBitMaps[i+2+j]&(0x80>>k) != 0 {
+					typeList = append(typeList, DNSType(index*256+j*8+k))
+				}
+			}
+		}
+		i += 2 + int(length)
+	}
+	return typeList
+}
+
+func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	var err error
+	var rdEnd = offset + rdLen
+	if len(buffer) < rdEnd {
+		return -1, fmt.Errorf("method DNSRDATANSEC DecodeFromBuffer failed: buffer length %d is less than offset %d + NSEC RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	rdata.NextDomainName, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATANSEC DecodeFromBuffer failed: decode NSEC Next Domain Name failed.\n%v", err)
+	}
+	rdata.TypeBitMaps = DecodeTypeBitMaps(buffer[offset:rdEnd])
+	return rdEnd, nil
+}
+
+// NSEC3 RDATA 编码格式
+// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |   Hash Alg.  | 	Flags 	| 			Iterations			   |
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |  Salt Length | 					Salt 		    	       /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// |  Hash Length | 			Next Hashed Owner Name		       /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// / 						Type Bit Maps				 		   /
+// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+// DNSRDATANSEC3 结构体表示 NSEC3 类型的 DNS 资源记录的 RDATA 部分。
+// 其包含以下字段：
+//   - HashAlgorithm: 8位无符号整数，表示哈希算法。
+//   - Flags: 8位无符号整数，表示标志。
+//   - Iterations: 16位无符号整数，表示迭代次数。
+//   - SaltLength: 8位无符号整数，表示Salt长度。
+//   - Salt: 字符串，表示Salt。
+//   - HashLength: 8位无符号整数，表示哈希长度。
+//   - NextHashedOwnerName: 下一个哈希的所有名称。
+//   - TypeBitMaps: 类型位图。
+//
+// RFC 5155 3.2 节 定义了 NSEC3 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// 其 Type 值为 50。
+
+type DNSRDATANSEC3 struct {
+	HashAlgorithm       DNSSECDigestType
+	Flags               NSEC3Flags
+	Iterations          uint16
+	SaltLength          uint8
+	Salt                string
+	HashLength          uint8
+	NextHashedOwnerName string
+	TypeBitMaps         []DNSType
+}
+
+type NSEC3Flags uint8
+
+const (
+	NSEC3FlagOptOut   NSEC3Flags = 1
+	NSEC3FlagReserved NSEC3Flags = 0
+)
+
+func (rdata *DNSRDATANSEC3) Type() DNSType {
+	return DNSRRTypeNSEC3
+}
+
+func (rdata *DNSRDATANSEC3) Size() int {
+	saltBytes := []byte(rdata.Salt)
+	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
+	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+	size := 6 + len(saltBytes) + len(nextHashOwnerName) + len(typeBitMaps)
+	return size
+}
+
+func (rdata *DNSRDATANSEC3) String() string {
+	return fmt.Sprint(
+		"### RDATA Section ###\n",
+		"Hash Algorithm: ", rdata.HashAlgorithm,
+		"\nFlags: ", rdata.Flags,
+		"\nIterations: ", rdata.Iterations,
+		"\nSalt Length: ", rdata.SaltLength,
+		"\nSalt: ", rdata.Salt,
+		"\nHash Length: ", rdata.HashLength,
+		"\nNext Hashed Owner Name: ", rdata.NextHashedOwnerName,
+		"\nType Bit Maps: ", rdata.TypeBitMaps,
+	)
+}
+
+func (rdata *DNSRDATANSEC3) Equal(rr DNSRRRDATA) bool {
+	rrnsec3, ok := rr.(*DNSRDATANSEC3)
+	if !ok {
+		return false
+	}
+
+	typeList := make([]int, 0)
+	sort.Ints(typeList)
+
+	for _, t := range rdata.TypeBitMaps {
+		typeList = append(typeList, int(t))
+	}
+
+	rrTypeList := make([]int, 0)
+	for _, t := range rrnsec3.TypeBitMaps {
+		rrTypeList = append(rrTypeList, int(t))
+	}
+	sort.Ints(rrTypeList)
+
+	if len(typeList) != len(rrTypeList) {
+		return false
+	}
+	for i := 0; i < len(typeList); i++ {
+		if typeList[i] != rrTypeList[i] {
+			return false
+		}
+	}
+
+	return rdata.HashAlgorithm == rrnsec3.HashAlgorithm &&
+		rdata.Flags == rrnsec3.Flags &&
+		rdata.Iterations == rrnsec3.Iterations &&
+		rdata.Salt == rrnsec3.Salt &&
+		rdata.NextHashedOwnerName == rrnsec3.NextHashedOwnerName
+}
+
+func (rdata *DNSRDATANSEC3) HashOwnerName(ownerName string) []byte {
+	nextHashOwnerName := EncodeDomainName(&ownerName)
+	switch rdata.HashAlgorithm {
+	case DNSSECDigestTypeSHA1:
+		for i := 0; i <= int(rdata.Iterations); i++ {
+			digest := sha1.Sum(append(nextHashOwnerName, []byte(rdata.Salt)...))
+			nextHashOwnerName = digest[:]
+		}
+		return nextHashOwnerName
+	case DNSSECDigestTypeSHA256:
+		for i := 0; i <= int(rdata.Iterations); i++ {
+			digest := sha256.Sum256(append(nextHashOwnerName, []byte(rdata.Salt)...))
+			nextHashOwnerName = digest[:]
+		}
+	case DNSSECDigestTypeSHA384:
+		for i := 0; i <= int(rdata.Iterations); i++ {
+			digest := sha512.Sum384(append(nextHashOwnerName, []byte(rdata.Salt)...))
+			nextHashOwnerName = digest[:]
+		}
+	case DNSSECDigestTypeSHA512:
+		for i := 0; i <= int(rdata.Iterations); i++ {
+			digest := sha512.Sum512(append(nextHashOwnerName, []byte(rdata.Salt)...))
+			nextHashOwnerName = digest[:]
+		}
+	}
+	return nextHashOwnerName
+}
+
+func (rdata *DNSRDATANSEC3) Encode() []byte {
+	bytesArray := make([]byte, 0)
+	bytesArray = append(bytesArray, uint8(rdata.HashAlgorithm))
+	bytesArray = append(bytesArray, uint8(rdata.Flags))
+	bytesArray = append(bytesArray, byte(rdata.Iterations>>8), byte(rdata.Iterations))
+	if rdata.SaltLength == 0 {
+		bytesArray = append(bytesArray, uint8(len([]byte(rdata.Salt))))
+	} else {
+		bytesArray = append(bytesArray, rdata.SaltLength)
+	}
+	bytesArray = append(bytesArray, []byte(rdata.Salt)...)
+	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
+	if rdata.HashLength == 0 {
+		bytesArray = append(bytesArray, uint8(len(nextHashOwnerName)))
+	} else {
+		bytesArray = append(bytesArray, rdata.HashLength)
+	}
+	bytesArray = append(bytesArray, nextHashOwnerName...)
+	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+	bytesArray = append(bytesArray, typeBitMaps...)
+	return bytesArray
+}
+
+func (rdata *DNSRDATANSEC3) EncodeToBuffer(buffer []byte) (int, error) {
+	saltBytes := []byte(rdata.Salt)
+	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
+	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+	size := 6 + len(saltBytes) + len(nextHashOwnerName) + len(typeBitMaps)
+	if len(buffer) < size {
+		return -1, fmt.Errorf("buffer length %d is less than NSEC3 RDATA size %d", len(buffer), size)
+	}
+	buffer[0] = byte(rdata.HashAlgorithm)
+	buffer[1] = uint8(rdata.Flags)
+	binary.BigEndian.PutUint16(buffer[2:], rdata.Iterations)
+	if rdata.SaltLength == 0 {
+		buffer[4] = byte(len(saltBytes))
+	} else {
+		buffer[4] = rdata.SaltLength
+	}
+	copy(buffer[5:], saltBytes)
+	if rdata.HashLength == 0 {
+		buffer[5+len(saltBytes)] = byte(len(nextHashOwnerName))
+	} else {
+		buffer[5+len(saltBytes)] = rdata.HashLength
+	}
+	buffer[6+len(saltBytes)] = byte(len(nextHashOwnerName))
+	copy(buffer[7+len(saltBytes):], nextHashOwnerName)
+	copy(buffer[7+len(saltBytes)+len(nextHashOwnerName):], typeBitMaps)
+	return size, nil
+}
+
+func (rdata *DNSRDATANSEC3) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+	var err error
+	var rdEnd = offset + rdLen
+	if rdLen < 6 {
+		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: NSEC3 RDATA size %d is less than 6", rdLen)
+	}
+	if len(buffer) < rdEnd {
+		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: buffer length %d is less than offset %d + NSEC3 RDATA size %d", len(buffer), offset, rdata.Size())
+	}
+	rdata.HashAlgorithm = DNSSECDigestType(buffer[offset])
+	rdata.Flags = NSEC3Flags(buffer[offset+1])
+	rdata.Iterations = binary.BigEndian.Uint16(buffer[offset+2:])
+	rdata.SaltLength = buffer[offset+4]
+	rdata.Salt = string(buffer[offset+5 : offset+5+int(rdata.SaltLength)])
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: decode NSEC3 Salt failed.\n%v", err)
+	}
+	offset += 5 + int(rdata.SaltLength)
+	rdata.HashLength = buffer[offset]
+	rdata.NextHashedOwnerName = base32.StdEncoding.EncodeToString(buffer[offset+1 : offset+1+int(rdata.HashLength)])
+	if err != nil {
+		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: decode NSEC3 Next Hashed Owner Name failed.\n%v", err)
+	}
+	rdata.TypeBitMaps = DecodeTypeBitMaps(buffer[offset+1+int(rdata.HashLength) : rdEnd])
 	return rdEnd, nil
 }
 

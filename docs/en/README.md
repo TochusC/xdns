@@ -1,41 +1,41 @@
-# GoDNS
+# xdns
 
-[![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange&style=flat-square)](https://github.com/TochusC/godns)
-![Go Version](https://img.shields.io/github/go-mod/go-version/tochusc/godns/master?filename=go.mod&style=flat-square)
-![Latest Version](https://img.shields.io/github/v/tag/tochusc/godns?label=latest&style=flat-square)
-![License](https://img.shields.io/github/license/tochusc/godns?style=flat-square)
-[![GoDoc](https://godoc.org/github.com/tochusc/godns?status.svg)](https://godoc.org/github.com/tochusc/godns)
+[![madewithlove](https://img.shields.io/badge/made_with-%E2%9D%A4-red?style=for-the-badge&labelColor=orange&style=flat-square)](https://github.com/TochusC/xdns)
+![Go Version](https://img.shields.io/github/go-mod/go-version/tochusc/xdns/master?filename=go.mod&style=flat-square)
+![Latest Version](https://img.shields.io/github/v/tag/tochusc/xdns?label=latest&style=flat-square)
+![License](https://img.shields.io/github/license/tochusc/xdns?style=flat-square)
+[![GoDoc](https://godoc.org/github.com/tochusc/xdns?status.svg)](https://godoc.org/github.com/tochusc/xdns)
 
 [简体中文](../../README.md) | [English](README.md)
 
-GoDNS is a fast, flexible **experimental** DNS server designed to help developers and researchers explore and experiment with various features of the DNS protocol.
+xdns is a fast, flexible **experimental** DNS server designed to help developers and researchers explore and experiment with various features of the DNS protocol.
 
 ## Table of Contents
 
-- [GoDNSServer](#godnsserver)
+- [xdnsServer](#xdnsserver)
 - [Examples](#examples)
 - [Constructing and Generating DNS Replies](#constructing-and-generating-dns-replies)
 - [dns Package](#dns-package)
 - [xlayers Subpackage](#xlayers-subpackage)
 - [xperi Subpackage](#xperi-subpackage)
 
-## GoDNSServer
+## xdnsServer
 
-`GoDNSServer` is a top-level wrapper for the DNS server, consisting of three parts:
+`xdnsServer` is a top-level wrapper for the DNS server, consisting of three parts:
 
 1. **ServerConfig**: Configuration for the DNS server.
 2. **Netter**: Packet handler that receives, parses, and sends packets while maintaining connection state.
 3. **Responser**: DNS responder that responds, parses, and constructs DNS replies.
 
 ```go
-type GoDNSServer struct {
+type xdnsServer struct {
     ServerConfig DNSServerConfig
     Netter       Netter
     Responer     Responser
 }
 
-// Start the GoDNS server!
-func (s *GoDNSServer) Start()
+// Start the xdns server!
+func (s *xdnsServer) Start()
 ```
 
 ### Netter
@@ -83,14 +83,14 @@ type Responser interface { // size=16 (0x10)
 
 ## Examples
 
-With just a few lines of code, you can start a basic GoDNS server:
+With just a few lines of code, you can start a basic xdns server:
 
 ```go
 // Create a DNS server
-server := godns.GoDNSServer{
+server := xdns.xdnsServer{
     ServerConfig: sConf,
-    Netter: godns.Netter{
-        Config: godns.NetterConfig{
+    Netter: xdns.Netter{
+        Config: xdns.NetterConfig{
         Port: sConf.Port,
             MTU:  sConf.MTU,
         },
@@ -174,4 +174,4 @@ This project is licensed under the [GPL-3.0 License](LICENSE).
 
 ---
 
-For more information or support, please visit our [GitHub page](https://github.com/TochusC/godns).
+For more information or support, please visit our [GitHub page](https://github.com/TochusC/xdns).

@@ -7,6 +7,7 @@ package xperi
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
@@ -17,8 +18,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math/big"
+	mrand "math/rand"
 
-	"github.com/tochusc/godns/dns"
+	"github.com/tochusc/xdns/dns"
 )
 
 // ParseKeyBase64 解析 Base64 编码的密钥为字节切片
@@ -225,6 +227,7 @@ func GenerateRDATADS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDi
 	case dns.DNSSECDigestTypeSHA384:
 		nDigest := sha512.Sum384(pText)
 		digest = nDigest[:]
+
 	default:
 		panic(fmt.Sprintf("unsupported digest type: %d", dType))
 	}
@@ -267,56 +270,37 @@ func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDiges
 //
 // 返回值：
 //   - 你想要的 DNSKEY RDATA
-func GenerateRandomDNSKEYWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
-	algorithmer := DNSSECAlgorithmerFactory(algo)
-	_, pubKey := algorithmer.GenerateKey()
+func GenerateCollidedDNSKEY(rdata dns.DNSRDATADNSKEY) dns.DNSRDATADNSKEY {
+
+	keyLen := len(rdata.PublicKey)
+
+	keyByte := make([]byte, keyLen)
+	copy(keyByte, rdata.PublicKey)
+
+	randomIndexPlus := mrand.Intn(keyLen/2) + 1
+	randomIndexMinus := mrand.Intn(keyLen/2) + 1
+
+	for randomIndexPlus == randomIndexMinus {
+		randomIndexMinus = mrand.Intn(keyLen/2) + 1
+	}
+
+	randomOffset := uint8(mrand.Intn(128)) + 1
+
+	keyByte[randomIndexPlus*2-1] = keyByte[randomIndexPlus*2-1] + randomOffset
+	if keyByte[randomIndexPlus*2-1] < randomOffset {
+		keyByte[randomIndexPlus*2-2] = keyByte[randomIndexPlus*2-2] + 1
+	}
+
+	keyByte[randomIndexMinus*2-1] = keyByte[randomIndexMinus*2-1] - randomOffset
+	if keyByte[randomIndexMinus*2-1] > 255-randomOffset {
+		keyByte[randomIndexMinus*2-2] = keyByte[randomIndexMinus*2-2] - 1
+	}
+
 	pKey := dns.DNSRDATADNSKEY{
-		Flags:     flag,
-		Protocol:  3,
-		Algorithm: algo,
-		PublicKey: pubKey,
-	}
-
-	rTag := CalculateKeyTag(pKey)
-	dif := tag - int(rTag)
-	if dif < 0 {
-		dif = 0xFFFF + dif
-	}
-	hDif := dif & 0xFF00 >> 8
-	lDif := dif & 0xFF
-	for i := 0; i < len(pubKey); i++ {
-		bVal := int(pubKey[i])
-		if lDif != 0 && i&1 == 1 {
-			if bVal+lDif > 255 {
-				lDif = 255 - int(pubKey[i])
-				pubKey[i] = 255
-			} else if bVal+lDif < 0 {
-				lDif -= int(pubKey[i])
-				pubKey[i] = 0
-			} else {
-				pubKey[i] = byte(int(pubKey[i]) + lDif)
-				lDif = 0
-			}
-		}
-		if hDif != 0 && i&1 == 0 {
-			if bVal+hDif > 255 {
-				hDif = 255 - int(pubKey[i])
-				pubKey[i] = 255
-			} else if bVal+hDif < 0 {
-				hDif -= int(pubKey[i])
-				pubKey[i] = 0
-			} else {
-				pubKey[i] = byte(int(pubKey[i]) + hDif)
-				hDif = 0
-			}
-		}
-	}
-
-	nTag := CalculateKeyTag(pKey)
-
-	// 重新计算 Key Tag, 算法不能保证成功
-	if nTag != uint16(tag) {
-		return GenerateRandomDNSKEYWithTag(algo, flag, tag)
+		Flags:     rdata.Flags,
+		Protocol:  rdata.Protocol,
+		Algorithm: rdata.Algorithm,
+		PublicKey: keyByte,
 	}
 
 	return pKey
@@ -330,18 +314,30 @@ func GenerateRandomDNSKEYWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, 
 //
 // 返回值：
 //   - 你想要的 DNSKEY RDATA
-//
-// 注意：这个函数会十分耗时，因为它会尝试生成大量的密钥对，直到找到一个符合要求的密钥对。
-func GenerateDNSKEYWithTag(algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag, tag int) dns.DNSRDATADNSKEY {
-	for {
-		kRDATA, _ := GenerateRDATADNSKEY(
-			algo,
-			flag,
-		)
-		if CalculateKeyTag(kRDATA) == uint16(tag) {
-			return kRDATA
-		}
+func GenerateDNSKEYWithTag(rdata dns.DNSRDATADNSKEY, i int) dns.DNSRDATADNSKEY {
+	kbLen := len(rdata.PublicKey)
+	kb := make([]byte, kbLen)
+	copy(kb, rdata.PublicKey)
+	randomIndex := mrand.Intn(kbLen/2) + 1
 
+	lowOff := uint8(i % 256)
+	highOff := uint8(i / 256)
+
+	for kb[randomIndex*2-2] < highOff {
+		randomIndex = mrand.Intn(kbLen/2) + 1
+	}
+	kb[randomIndex*2-2] = kb[randomIndex*2-2] - highOff
+
+	kb[randomIndex*2-1] = kb[randomIndex*2-1] - lowOff
+	if kb[randomIndex*2-1] > 255-lowOff {
+		kb[randomIndex*2-2] = kb[randomIndex*2-2] - 1
+	}
+
+	return dns.DNSRDATADNSKEY{
+		Flags:     rdata.Flags,
+		Protocol:  rdata.Protocol,
+		Algorithm: rdata.Algorithm,
+		PublicKey: kb,
 	}
 }
 
@@ -375,15 +371,26 @@ func GenerateRandomString(length int) string {
 func GenerateRandomRDATARRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	expiration, inception uint32, keyTag uint16, signerName string) dns.DNSRDATARRSIG {
 
-	algorithmer := DNSSECAlgorithmerFactory(algo)
-	privKey, _ := algorithmer.GenerateKey()
-	rText := GenerateRandomString(96)
-	sig, err := algorithmer.Sign([]byte(rText), privKey)
-	if err != nil {
-		panic(fmt.Sprintf("function GenerateRandomRRSIG() failed:\n%s", err))
+	var sigLen int
+	switch algo {
+	case dns.DNSSECAlgorithmRSASHA1:
+		sigLen = 128
+	case dns.DNSSECAlgorithmRSASHA256:
+		sigLen = 256
+	case dns.DNSSECAlgorithmRSASHA512:
+		sigLen = 512
+	case dns.DNSSECAlgorithmECDSAP256SHA256:
+		sigLen = 64
+	case dns.DNSSECAlgorithmECDSAP384SHA384:
+		sigLen = 96
+	case dns.DNSSECAlgorithmED25519:
+		sigLen = 64
+	default:
+		panic(fmt.Sprintf("unsupported algorithm: %d", algo))
 	}
 
-	_, err = rand.Read(sig)
+	sig := make([]byte, sigLen)
+	_, err := rand.Read(sig)
 	if err != nil {
 		panic(fmt.Sprintf("function GenerateRandomRRSIG() failed:\n%s", err))
 	}
@@ -392,7 +399,7 @@ func GenerateRandomRDATARRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgo
 		TypeCovered: rrSet[0].Type,
 		Algorithm:   algo,
 		Labels:      uint8(dns.CountDomainNameLabels(&rrSet[0].Name)),
-		OriginalTTL: 3600,
+		OriginalTTL: 8,
 		Expiration:  expiration,
 		Inception:   inception,
 		KeyTag:      keyTag,
@@ -424,20 +431,23 @@ func GenerateRandomRRRRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorit
 }
 
 func GenerateRandomRDATADS(oName string, keytag int, algo dns.DNSSECAlgorithm, dType dns.DNSSECDigestType) dns.DNSRDATADS {
-	rText := []byte(GenerateRandomString(96))
-	var digest []byte
+
+	var digestLen int
 	switch dType {
 	case dns.DNSSECDigestTypeSHA1:
-		nDigest := sha1.Sum(rText)
-		digest = nDigest[:]
+		digestLen = 20
 	case dns.DNSSECDigestTypeSHA256:
-		nDigest := sha256.Sum256(rText)
-		digest = nDigest[:]
+		digestLen = 32
 	case dns.DNSSECDigestTypeSHA384:
-		nDigest := sha512.Sum384(rText)
-		digest = nDigest[:]
+		digestLen = 48
 	default:
 		panic(fmt.Sprintf("unsupported digest type: %d", dType))
+	}
+
+	digest := make([]byte, digestLen)
+	_, err := rand.Read(digest)
+	if err != nil {
+		panic(fmt.Sprintf("function GenerateRandomDS() failed:\n%s", err))
 	}
 
 	// 4. 构建 DS RDATA
@@ -484,6 +494,8 @@ func DNSSECAlgorithmerFactory(algo dns.DNSSECAlgorithm) DNSSECAlgorithmer {
 		return ECDSAP256SHA256{}
 	case dns.DNSSECAlgorithmECDSAP384SHA384:
 		return ECDSAP384SHA384{}
+	case dns.DNSSECAlgorithmED25519:
+		return ED25519{}
 	default:
 		panic(fmt.Sprintf("unsupported algorithm: %d", algo))
 	}
@@ -528,11 +540,16 @@ func (RSASHA1) GenerateKey() ([]byte, []byte) {
 type RSASHA256 struct{}
 
 func (RSASHA256) Sign(data, privKey []byte) ([]byte, error) {
+	copied_data := make([]byte, len(data))
+	copy(copied_data, data)
+	copied_key := make([]byte, len(privKey))
+	copy(copied_key, privKey)
+
 	// 计算明文摘要
-	digest := sha256.Sum256(data)
+	digest := sha256.Sum256(copied_data)
 
 	// 重建 RSA 私钥
-	pKey, err := x509.ParsePKCS1PrivateKey(privKey)
+	pKey, err := x509.ParsePKCS1PrivateKey(copied_key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse private key: %s", err)
 	}
@@ -569,6 +586,9 @@ func (RSASHA512) Sign(data, privKey []byte) ([]byte, error) {
 
 	// 重建 RSA 私钥
 	pKey, err := x509.ParsePKCS1PrivateKey(privKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %s", err)
+	}
 
 	// 签名
 	signature, err := rsa.SignPKCS1v15(nil, pKey, crypto.SHA512, digest[:])
@@ -630,19 +650,39 @@ func (ECDSAP256SHA256) GenerateKey() ([]byte, []byte) {
 
 type ECDSAP384SHA384 struct{}
 
+type MyReader struct {
+}
+
+func (MyReader) Read(p []byte) (n int, err error) {
+	for i := 0; i < len(p); i++ {
+		p[i] = 1
+	}
+	return len(p), nil
+}
+
 func (ECDSAP384SHA384) Sign(data, privKey []byte) ([]byte, error) {
 	// 计算明文摘要
 	digest := sha512.Sum384(data)
 
 	// 重建 ECDSA 私钥
-	curve := elliptic.P384()
-	pKey := new(ecdsa.PrivateKey)
-	pKey.PublicKey.Curve = curve
-	pKey.D = new(big.Int).SetBytes(privKey)
-	pKey.PublicKey.X, pKey.PublicKey.Y = curve.ScalarBaseMult(privKey)
+	var pKey *ecdsa.PrivateKey
+
+	xpkey, err := x509.ParsePKCS8PrivateKey(privKey)
+	if err != nil {
+		curve := elliptic.P384()
+		pKey = new(ecdsa.PrivateKey)
+		pKey.PublicKey.Curve = curve
+		pKey.D = new(big.Int).SetBytes(privKey)
+		pKey.PublicKey.X, pKey.PublicKey.Y = curve.ScalarBaseMult(privKey)
+	} else {
+		pKey = xpkey.(*ecdsa.PrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %s", err)
+		}
+	}
 
 	// 签名
-	r, s, err := ecdsa.Sign(rand.Reader, pKey, digest[:])
+	r, s, err := ecdsa.Sign(MyReader{}, pKey, digest[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign: %s", err)
 	}
@@ -660,4 +700,26 @@ func (ECDSAP384SHA384) GenerateKey() ([]byte, []byte) {
 	privKeyBytes := privKey.D.Bytes()
 	pubKeyBytes := append(privKey.PublicKey.X.Bytes(), privKey.PublicKey.Y.Bytes()...)
 	return privKeyBytes, pubKeyBytes
+}
+
+// ED25519 是 Ed25519 签名算法的实现
+type ED25519 struct{}
+
+func (ED25519) Sign(data, privKey []byte) ([]byte, error) {
+	// 计算明文摘要
+	digest := sha512.Sum512(data)
+
+	// 使用 Ed25519 签名
+	signature := ed25519.Sign(privKey, digest[:])
+
+	return signature, nil
+}
+
+func (ED25519) GenerateKey() ([]byte, []byte) {
+	// 生成 Ed25519 密钥对
+	pubKey, privKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		panic(fmt.Sprintf("failed to generate Ed25519 key: %s", err))
+	}
+	return privKey, pubKey
 }

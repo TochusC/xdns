@@ -5,27 +5,70 @@
 package xperi
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"net"
 	"testing"
 
-	"github.com/tochusc/godns/dns"
+	"github.com/tochusc/xdns/dns"
 )
 
+func TestMyTest(t *testing.T) {
+	nsrdata := dns.DNSRDATANS{
+		NSDNAME: "ns.test.",
+	}
+	t.Logf("NSRR: %s", nsrdata.Encode())
+
+}
+
+func TestGenerateKSKDS(t *testing.T) {
+	kskPublic := ParseKeyBase64("MzJsFTtAo0j8qGpDIhEMnK4ImTyYwMwDPU5gt/FaXd6TOw6AvZDAj2hlhZvaxMXV6xCw1MU5iPv5ZQrb3NDLUU+TW07imJ5GD9YKi0Qiiypo+zhtL4aGaOG+870yHwuY")
+	ksk := dns.DNSRDATADNSKEY{
+		Flags:     dns.DNSKEYFlagSecureEntryPoint,
+		Protocol:  3,
+		Algorithm: dns.DNSSECAlgorithmECDSAP384SHA384,
+		PublicKey: kskPublic,
+	}
+	ds := GenerateRDATADS("test.", ksk, dns.DNSSECDigestTypeSHA256)
+	t.Logf("DS: %s\n, Digest: %s\n", ds.String(), hex.EncodeToString(ds.Digest))
+}
+
 // TestGenerateRandomKeyWithTag 测试 GenerateRandomKeyWithTag 函数
-func TestGenerateRandomKeyWithTag(t *testing.T) {
-	key := GenerateRandomDNSKEYWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 12345)
-	if CalculateKeyTag(key) != 12345 {
-		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 12345)
+func TestGenerateCollidedDNSKEY(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		key1, _ := GenerateRDATADNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagZoneKey)
+		key2 := GenerateCollidedDNSKEY(key1)
+		if CalculateKeyTag(key1) != CalculateKeyTag(key2) {
+			t.Errorf("Key Tag not match: %d != %d", CalculateKeyTag(key1), CalculateKeyTag(key2))
+		}
 	}
 }
 
-// // TestGenKeyWithTag 测试 GenKeyWithTag 函数
-// func TestGenenrateDNSKEYWithTag(t *testing.T) {
-// 	key := GenerateDNSKEYWithTag(dns.DNSSECAlgorithmRSASHA256, dns.DNSKEYFlagZoneKey, 41797)
-// 	if int(CalculateKeyTag(key)) != 41797 {
-// 		t.Errorf("Key Tag not match, got: %d, expected: %d", CalculateKeyTag(key), 41797)
-// 	}
-// }
+// TestGenerateRDATADNSKEY 测试 GenerateRDATADNSKEY 函数
+func TestGenerateRDATADNSKEY(t *testing.T) {
+	pubKey, privKey := GenerateRDATADNSKEY(dns.DNSSECAlgorithmED25519, dns.DNSKEYFlagSecureEntryPoint)
+	// if pubKey.Flags != dns.DNSKEYFlagZoneKey {
+	// 	t.Errorf("Flag not match")
+	// }
+	// if pubKey.Protocol != 3 {
+	// 	t.Errorf("Protocol not match")
+	// }
+	// if pubKey.Algorithm != dns.DNSSECAlgorithmECDSAP384SHA384 {
+	// 	t.Errorf("Algorithm not match")
+	// }
+	t.Logf("Public Key: %s", base64.StdEncoding.EncodeToString(pubKey.PublicKey))
+	t.Logf("Private Key: %s", base64.StdEncoding.EncodeToString(privKey))
+}
+
+// TestGenKeyWithTag 测试 GenKeyWithTag 函数
+func TestGenenrateDNSKEYWithTag(t *testing.T) {
+	ksk, _ := GenerateRDATADNSKEY(dns.DNSSECAlgorithmECDSAP384SHA384, dns.DNSKEYFlagZoneKey)
+	keytag := CalculateKeyTag(ksk)
+	key := GenerateDNSKEYWithTag(ksk, 1)
+	if keytag != CalculateKeyTag(key)+1 {
+		t.Errorf("Key Tag not match: %d != %d", keytag, CalculateKeyTag(key)+1)
+	}
+}
 
 // TestGenRandomRRSIG 测试 GenRandomRRSIG 函数
 func TestGenerateRandomRRSIG(t *testing.T) {
