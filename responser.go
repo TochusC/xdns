@@ -3,15 +3,15 @@
 // responser.go 文件定义了 Responser 接口及其若干实现范例。
 // 可以根据需求自定义实现 Responser 接口，以生成 DNS 回复信息。
 
-package godns
+package xdns
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/tochusc/godns/dns"
-	"github.com/tochusc/godns/dns/xperi"
+	"github.com/tochusc/xdns/dns"
+	"github.com/tochusc/xdns/dns/xperi"
 )
 
 // Responser 是一个 DNS 回复器 接口。
@@ -265,7 +265,7 @@ func (d *BaseManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
 			continue
 		}
 		rid := rr.Name + rr.Type.String() + rr.Class.String()
-		rMap[rid] = append(rMap[rr.Name], rr)
+		rMap[rid] = append(rMap[rid], rr)
 	}
 	for _, rrset := range rMap {
 		uName := dns.GetUpperDomainName(&rrset[0].Name)

@@ -486,7 +486,7 @@ func TestDNSRDATADNSKEYDecodeFromBuffer(t *testing.T) {
 // 待测试的 NSEC 记录 RDATA 对象。
 var testedDNSRDATANSEC = DNSRDATANSEC{
 	NextDomainName: "example.com",
-	TypeBitMaps:    []byte{0x01, 0x02, 0x03, 0x04},
+	TypeBitMaps:    []DNSType{DNSRRTypeA, DNSRRTypeNS, DNSRRTypeCNAME},
 }
 
 // 待测试的 NSEC 记录 RDATA 编码后结果。
@@ -494,7 +494,7 @@ var testedDNSRDATANSECEncoded = []byte{
 	0x07, 'e', 'x', 'a', 'm', 'p', 'l', 'e',
 	0x03, 'c', 'o', 'm',
 	0x00,
-	0x01, 0x02, 0x03, 0x04,
+	0x00, 0x01, 0x64,
 }
 
 // 测试 NSEC RDATA 的 Size 方法
@@ -554,7 +554,7 @@ func TestDNSRDATANSECDecodeFromBuffer(t *testing.T) {
 		t.Errorf("function DNSRDATANSECDecodeFromBuffer() failed:\ngot:%d\nexpected: %d",
 			offset, len(testedDNSRDATANSECEncoded))
 	}
-	if decodedDNSRDATANSEC.Equal(&testedDNSRDATANSEC) {
+	if !decodedDNSRDATANSEC.Equal(&testedDNSRDATANSEC) {
 		t.Errorf("function DNSRDATANSECDecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
 			decodedDNSRDATANSEC.String(), testedDNSRDATANSEC.String())
 	}
@@ -565,6 +565,39 @@ func TestDNSRDATANSECDecodeFromBuffer(t *testing.T) {
 	if err == nil {
 		t.Error("function DNSRDATANSECDecodeFromBuffer() failed: expected an error but got nil")
 	}
+}
+
+// 测试 NSEC3 RDATA
+var testedDNSRDATANSEC3 = DNSRDATANSEC3{
+	HashAlgorithm:       DNSSECDigestTypeSHA1,
+	Flags:               NSEC3FlagOptOut,
+	Iterations:          12,
+	SaltLength:          0,
+	Salt:                "aabbccdd",
+	NextHashedOwnerName: "example",
+	TypeBitMaps:         []DNSType{DNSRRTypeA, DNSRRTypeRRSIG},
+}
+
+// 1 1
+// 0 12
+// 8
+// 97 97 98 98 99 99 100 100
+// 20
+// 99 82 96 22 213
+// 115 203 233 166 230
+// 231 187 154 234 235
+// 204 161 95 168 4
+// 0 1 64
+func TestDNSRDATANSEC3(t *testing.T) {
+	encodedDNSRDATANSEC3 := testedDNSRDATANSEC3.Encode()
+	t.Errorf("%v, %d", encodedDNSRDATANSEC3, len(encodedDNSRDATANSEC3))
+	decodedDNSRDATANSEC3 := DNSRDATANSEC3{}
+	_, err := decodedDNSRDATANSEC3.DecodeFromBuffer(encodedDNSRDATANSEC3, 0, len(encodedDNSRDATANSEC3))
+	if err != nil {
+		t.Errorf("function DNSRDATANSEC3DecodeFromBuffer() failed:\n%s", err)
+	}
+	t.Errorf("%s", decodedDNSRDATANSEC3.String())
+
 }
 
 // 测试 DS RDATA

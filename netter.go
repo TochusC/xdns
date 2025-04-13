@@ -1,4 +1,4 @@
-package godns
+package xdns
 
 import (
 	"encoding/binary"
@@ -6,8 +6,6 @@ import (
 	"io"
 	"log"
 	"net"
-
-	"github.com/panjf2000/ants/v2"
 )
 
 // NetterConfig 结构体用于记录网络监听器的配置
@@ -19,11 +17,10 @@ type NetterConfig struct {
 // Netter 数据包监听器：接收、解析、发送数据包，并维护连接状态。
 type Netter struct {
 	NetterPort   int
-	NetterPool   *ants.Pool
 	NetterLogger *log.Logger
 }
 
-func NewNetter(nConf NetterConfig, pool *ants.Pool) *Netter {
+func NewNetter(nConf NetterConfig) *Netter {
 	netterLogger := log.New(nConf.LogWriter, "Netter: ", log.LstdFlags)
 
 	return &Netter{
@@ -35,21 +32,27 @@ func NewNetter(nConf NetterConfig, pool *ants.Pool) *Netter {
 // Sniff 函数用于监听指定端口，并返回链接信息通道
 // 其返回值为：chan ConnectionInfo，链接信息通道
 func (n *Netter) Sniff() chan ConnectionInfo {
-	connChan := make(chan ConnectionInfo)
+	connChan := make(chan ConnectionInfo, 16)
 
 	// udp
 	pktConn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", n.NetterPort))
 	if err != nil {
 		n.NetterLogger.Panicf("Error listening on udp port: %v", err)
 	}
-	ants.Submit(func() { n.handlePktConn(pktConn, connChan) })
+	conn := pktConn.(*net.UDPConn)
+	conn.SetReadBuffer(104857600)
+	conn.SetWriteBuffer(104857600)
+	if err != nil {
+		n.NetterLogger.Panicf("Error listening on udp port: %v", err)
+	}
+	go n.handlePktConn(pktConn, connChan)
 
 	// tcp
 	lstr, err := net.Listen("tcp", fmt.Sprintf(":%d", n.NetterPort))
 	if err != nil {
 		n.NetterLogger.Panicf("Error listening on tcp port: %v", err)
 	}
-	ants.Submit(func() { n.handleListener(lstr, connChan) })
+	go n.handleListener(lstr, connChan)
 
 	return connChan
 }
@@ -66,35 +69,51 @@ func (n *Netter) handleListener(lstr net.Listener, connChan chan ConnectionInfo)
 		if err != nil {
 			n.NetterLogger.Printf("Error accepting tcp connection: %v", err)
 		} else {
-			ants.Submit(func() { n.handleStreamConn(conn, connChan) })
+			go n.handleStreamConn(conn, connChan)
 		}
 	}
 }
 
-// handlePktConn 函数用于处理 数据包 链接
+// handlePktConn 函数用于监听UDP数据包
 // 其接收参数为：
 //   - pktConn: net.PacketConn，数据包链接
 //   - connChan: chan ConnectionInfo，链接信息通道
 //
 // 该函数将会读取 数据包链接 中的数据，并将其发送到链接信息通道中
 func (n *Netter) handlePktConn(pktConn net.PacketConn, connChan chan ConnectionInfo) {
-	buf := make([]byte, 65535)
+	// 可用缓冲区表
+	bufList := make(chan []byte, 10000)
+	for i := 0; i < 10000; i++ {
+		bufList <- make([]byte, 65535)
+	}
+
 	for {
+		// 从缓冲区表中取出缓冲区
+		buf := <-bufList
+
+		// 读取数据至缓冲区
 		sz, addr, err := pktConn.ReadFrom(buf)
 		if err != nil {
 			n.NetterLogger.Printf("Error reading udp packet: %v", err)
-			return
-		} else {
+			continue
+		}
+
+		go func() {
+			// 从缓冲区中取出数据包
 			pkt := make([]byte, sz)
 			copy(pkt, buf[:sz])
 
+			// 将缓冲区放回缓冲区表
+			bufList <- buf
+
+			// 返回链接信息至通道
 			connChan <- ConnectionInfo{
 				Protocol:   ProtocolUDP,
 				Address:    addr,
 				PacketConn: pktConn,
 				Packet:     pkt,
 			}
-		}
+		}()
 	}
 }
 
@@ -105,7 +124,7 @@ func (n *Netter) handlePktConn(pktConn net.PacketConn, connChan chan ConnectionI
 //
 // 该函数将会读取 流式链接 中的数据，并将其发送到链接信息通道中
 func (n *Netter) handleStreamConn(conn net.Conn, connChan chan ConnectionInfo) {
-	buf := make([]byte, 65535)
+	buf := make([]byte, 10485760)
 
 	sz, err := conn.Read(buf)
 	if err != nil {

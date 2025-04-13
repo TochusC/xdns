@@ -2,13 +2,13 @@
 
 // # 简体中文
 //
-// GoDNS 是一个快速、灵活的实验用 DNS 服务器，旨在帮助开发者和研究人员探索和实验 DNS 协议的各种特性。
+// xdns 是一个快速、灵活的实验用 DNS 服务器，旨在帮助开发者和研究人员探索和实验 DNS 协议的各种特性。
 //
-// # GoDNSServer
+// # xdnsServer
 //
-// [GoDNSServer] 是对 DNS 服务器的最顶层封装。
+// [xdnsServer] 是对 DNS 服务器的最顶层封装。
 //
-// GoDNSServer 包含以下三部分：
+// xdnsServer 包含以下三部分：
 //   - ServerConfig: DNS 服务器配置
 //   - Netter: 数据包处理器
 //   - Responser: DNS回复器
@@ -19,12 +19,12 @@
 //
 // 示例
 //
-//	通过下述几行代码，可以一键启动一个基础的 GoDNS 服务器：
+//	通过下述几行代码，可以一键启动一个基础的 xdns 服务器：
 //
-//	server := godns.GoDNSServer{
+//	server := xdns.xdnsServer{
 //		ServerConfig: sConf,
-//		Netter: godns.Netter{
-//			Config: godns.NetterConfig{
+//		Netter: xdns.Netter{
+//			Config: xdns.NetterConfig{
 //			Port: sConf.Port,
 //				MTU:  sConf.MTU,
 //			},
@@ -118,13 +118,13 @@
 //
 // # English
 //
-// GoDNS is a fast and flexible experimental DNS server designed to help developers and researchers explore and experiment with various features of the DNS protocol.
+// xdns is a fast and flexible experimental DNS server designed to help developers and researchers explore and experiment with various features of the DNS protocol.
 //
-// # GoDNSServer
+// # xdnsServer
 //
-// GoDNSServer is the top-level abstraction for a DNS server.
+// xdnsServer is the top-level abstraction for a DNS server.
 //
-// GoDNSServer consists of the following three components:
+// xdnsServer consists of the following three components:
 //   - ServerConfig: DNS server configuration
 //   - Netter: Packet handler
 //   - Responser: DNS responder
@@ -135,12 +135,12 @@
 //
 // # Example
 //
-// You can quickly start a basic GoDNS server with the following lines of code:
+// You can quickly start a basic xdns server with the following lines of code:
 //
-//	server := godns.GoDNSServer{
+//	server := xdns.xdnsServer{
 //		ServerConfig: sConf,
-//		Netter: godns.Netter{
-//			Config: godns.NetterConfig{
+//		Netter: xdns.Netter{
+//			Config: xdns.NetterConfig{
 //				Port: sConf.Port,
 //				MTU:  sConf.MTU,
 //			},
@@ -223,4 +223,4 @@
 //   - GenWrongKeyWithTag: Generates an incorrect DNSKEY with a specified KeyTag.
 //
 //   - GenKeyWithTag [This function is resource-intensive]: Generates a DNSKEY with a specified KeyTag.
-package godns
+package xdns

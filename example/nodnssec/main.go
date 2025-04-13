@@ -17,7 +17,7 @@ import (
 	"github.com/tochusc/xdns/dns/xperi"
 )
 
-var ServerIP = net.IPv4(10, 10, 1, 2)
+var ServerIP = net.IPv4(10, 10, 1, 3)
 var IsNameCompression = false
 var IsDNSSEC = true
 var InitTime = time.Now().UTC().Unix()
@@ -610,7 +610,9 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 			resp.Authority = append(resp.Authority, rr)
 			resp.Header.RCode = dns.DNSResponseCodeNoErr
 		}
+
 	} else {
+
 		switch qType {
 		case dns.DNSRRTypeA:
 			// 生成 A 记录

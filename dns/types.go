@@ -475,3 +475,41 @@ func (dnsType DNSType) String() string {
 		return "DLV"
 	}
 }
+
+func PubilcKeySizeOf(alg DNSSECAlgorithm) int {
+	switch alg {
+	case DNSSECAlgorithmECDSAP256SHA256:
+		return 64
+	case DNSSECAlgorithmECDSAP384SHA384:
+		return 96
+	case DNSSECAlgorithmED25519:
+		return 32
+	}
+	return 0
+}
+
+func DigestSizeOf(alg DNSSECDigestType) int {
+	switch alg {
+	case DNSSECDigestTypeSHA1:
+		return 20
+	case DNSSECDigestTypeSHA256:
+		return 32
+	case DNSSECDigestTypeSHA384:
+		return 48
+	case DNSSECDigestTypeSHA512:
+		return 64
+	default:
+		return 0
+	}
+}
+
+func SignatureSizeOf(alg DNSSECAlgorithm) int {
+	switch alg {
+	case DNSSECAlgorithmECDSAP256SHA256:
+		return 64
+	case DNSSECAlgorithmECDSAP384SHA384:
+		return 96
+	default:
+		return 0
+	}
+}

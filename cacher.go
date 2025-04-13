@@ -1,4 +1,4 @@
-package godns
+package xdns
 
 import (
 	"encoding/binary"
@@ -8,14 +8,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/panjf2000/ants/v2"
-	"github.com/tochusc/godns/dns"
+	"github.com/tochusc/xdns/dns"
 )
 
 type Cacher struct {
 	CacheLocation string
 	CacherLogger  *log.Logger
-	CacherPool    *ants.Pool
 }
 
 type CacherConfig struct {
@@ -23,13 +21,12 @@ type CacherConfig struct {
 	LogWriter     io.Writer
 }
 
-func NewCacher(conf CacherConfig, pool *ants.Pool) *Cacher {
+func NewCacher(conf CacherConfig) *Cacher {
 	cacherLogger := log.New(conf.LogWriter, "Cacher: ", log.LstdFlags)
 
 	return &Cacher{
 		CacheLocation: conf.CacheLocation,
 		CacherLogger:  cacherLogger,
-		CacherPool:    pool,
 	}
 }
 

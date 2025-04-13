@@ -1,59 +1,49 @@
 // Copyright 2024 TochusC AOSP Lab. All rights reserved.
 
-// server.go 文件定义了 GoDNS 服务器的最顶层封装。
-// GoDNS 服务器是一个易用、灵活的 DNS 服务器，
+// server.go 文件定义了 xdns 服务器的最顶层封装。
+// xdns 服务器是一个易用、灵活的 DNS 服务器，
 // 它可以监听指定的网络设备和端口，接收 DNS 请求并做出回复。
-// GoStart 函数提供了一个一键启动 GoDNS 服务器的代码示例。
+// GoStart 函数提供了一个一键启动 xdns 服务器的代码示例。
 
-package godns
+package xdns
 
 import (
 	"io"
 	"log"
 	"net"
-
-	"github.com/panjf2000/ants/v2"
 )
 
-// GoDNSServer 表示 GoDNS 服务器
+// xdnsServer 表示 xdns 服务器
 // 其包含以下三部分：
 //   - ServerConfig: DNS 服务器配置
 //   - Sniffer: 数据包嗅探器
 //   - Handler: 数据包处理器
-type GoDNSServer struct {
+type XdnsServer struct {
 	SeverConfig DNSServerConfig
-	// GoDNS 服务器的日志
-	GoDNSLogger *log.Logger
-
-	ThreadPool *ants.Pool
+	// xdns 服务器的日志
+	xdnsLogger *log.Logger
 
 	Netter   Netter
 	Cacher   Cacher
 	Responer Responser
 }
 
-func NewGoDNSServer(serverConf DNSServerConfig, responser Responser) *GoDNSServer {
-	godnsLogger := log.New(serverConf.LogWriter, "GoDNS: ", log.LstdFlags)
-	pool, err := ants.NewPool(serverConf.PoolCapcity)
-	if err != nil {
-		godnsLogger.Panicf("Error creating ants pool: %v", err)
-	}
+func NewxdnsServer(serverConf DNSServerConfig, responser Responser) *xdnsServer {
+	xdnsLogger := log.New(serverConf.LogWriter, "xdns: ", log.LstdFlags)
 
 	netter := NewNetter(NetterConfig{
 		Port:      serverConf.Port,
 		LogWriter: serverConf.LogWriter,
-	}, pool)
+	})
 
 	cacher := NewCacher(CacherConfig{
 		CacheLocation: serverConf.CacheLocation,
 		LogWriter:     serverConf.LogWriter,
-	}, pool)
+	})
 
-	return &GoDNSServer{
+	return &xdnsServer{
 		SeverConfig: serverConf,
-		GoDNSLogger: godnsLogger,
-
-		ThreadPool: pool,
+		xdnsLogger:  xdnsLogger,
 
 		Netter:   *netter,
 		Cacher:   *cacher,
@@ -61,7 +51,7 @@ func NewGoDNSServer(serverConf DNSServerConfig, responser Responser) *GoDNSServe
 	}
 }
 
-func (s *GoDNSServer) HandleConnection(connInfo ConnectionInfo) {
+func (s *xdnsServer) HandleConnection(connInfo ConnectionInfo) {
 	// 从缓存中查找响应
 	if s.SeverConfig.EnebleCache {
 		cache, err := s.Cacher.FetchCache(connInfo)
@@ -72,7 +62,7 @@ func (s *GoDNSServer) HandleConnection(connInfo ConnectionInfo) {
 	}
 	resp, err := s.Responer.Response(connInfo)
 	if err != nil {
-		s.GoDNSLogger.Printf("Error generating response: %v", err)
+		s.xdnsLogger.Printf("Error generating response: %v", err)
 		return
 	}
 
@@ -82,14 +72,14 @@ func (s *GoDNSServer) HandleConnection(connInfo ConnectionInfo) {
 	}
 }
 
-// Start 启动 GoDNS 服务器
-func (s *GoDNSServer) Start() {
-	// GoDNS 启动！
-	s.GoDNSLogger.Printf("GoDNS Starts!")
+// Start 启动 xdns 服务器
+func (s *xdnsServer) Start() {
+	// xdns 启动！
+	s.xdnsLogger.Printf("xdns Starts!")
 
 	connChan := s.Netter.Sniff()
 	for connInfo := range connChan {
-		s.ThreadPool.Submit(func() { s.HandleConnection(connInfo) })
+		go s.HandleConnection(connInfo)
 	}
 }
 

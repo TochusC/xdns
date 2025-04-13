@@ -1,7 +1,5 @@
-module github.com/tochusc/godns
+module github.com/tochusc/xdns
 
 go 1.23.2
 
-require github.com/panjf2000/ants/v2 v2.10.0
-
-require golang.org/x/sync v0.3.0 // indirect
+require golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
