@@ -6,10 +6,6 @@ package dns
 
 import (
 	"bytes"
-	"crypto/sha1"
-	"crypto/sha256"
-	"crypto/sha512"
-	"encoding/base32"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -1057,217 +1053,217 @@ func (rdata *DNSRDATANSEC) DecodeFromBuffer(buffer []byte, offset int, rdLen int
 	return rdEnd, nil
 }
 
-// NSEC3 RDATA 编码格式
-// 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
-// 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// |   Hash Alg.  | 	Flags 	| 			Iterations			   |
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// |  Salt Length | 					Salt 		    	       /
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// |  Hash Length | 			Next Hashed Owner Name		       /
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-// / 						Type Bit Maps				 		   /
-// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// // NSEC3 RDATA 编码格式
+// // 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3
+// // 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+// // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// // |   Hash Alg.  | 	Flags 	| 			Iterations			   |
+// // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// // |  Salt Length | 					Salt 		    	       /
+// // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// // |  Hash Length | 			Next Hashed Owner Name		       /
+// // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+// // / 						Type Bit Maps				 		   /
+// // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-// DNSRDATANSEC3 结构体表示 NSEC3 类型的 DNS 资源记录的 RDATA 部分。
-// 其包含以下字段：
-//   - HashAlgorithm: 8位无符号整数，表示哈希算法。
-//   - Flags: 8位无符号整数，表示标志。
-//   - Iterations: 16位无符号整数，表示迭代次数。
-//   - SaltLength: 8位无符号整数，表示Salt长度。
-//   - Salt: 字符串，表示Salt。
-//   - HashLength: 8位无符号整数，表示哈希长度。
-//   - NextHashedOwnerName: 下一个哈希的所有名称。
-//   - TypeBitMaps: 类型位图。
-//
-// RFC 5155 3.2 节 定义了 NSEC3 类型的 DNS 资源记录的 RDATA 部分的编码格式。
-// 其 Type 值为 50。
+// // DNSRDATANSEC3 结构体表示 NSEC3 类型的 DNS 资源记录的 RDATA 部分。
+// // 其包含以下字段：
+// //   - HashAlgorithm: 8位无符号整数，表示哈希算法。
+// //   - Flags: 8位无符号整数，表示标志。
+// //   - Iterations: 16位无符号整数，表示迭代次数。
+// //   - SaltLength: 8位无符号整数，表示Salt长度。
+// //   - Salt: 字符串，表示Salt。
+// //   - HashLength: 8位无符号整数，表示哈希长度。
+// //   - NextHashedOwnerName: 下一个哈希的所有名称。
+// //   - TypeBitMaps: 类型位图。
+// //
+// // RFC 5155 3.2 节 定义了 NSEC3 类型的 DNS 资源记录的 RDATA 部分的编码格式。
+// // 其 Type 值为 50。
 
-type DNSRDATANSEC3 struct {
-	HashAlgorithm       DNSSECDigestType
-	Flags               NSEC3Flags
-	Iterations          uint16
-	SaltLength          uint8
-	Salt                string
-	HashLength          uint8
-	NextHashedOwnerName string
-	TypeBitMaps         []DNSType
-}
+// type DNSRDATANSEC3 struct {
+// 	HashAlgorithm       DNSSECDigestType
+// 	Flags               NSEC3Flags
+// 	Iterations          uint16
+// 	SaltLength          uint8
+// 	Salt                string
+// 	HashLength          uint8
+// 	NextHashedOwnerName string
+// 	TypeBitMaps         []DNSType
+// }
 
-type NSEC3Flags uint8
+// type NSEC3Flags uint8
 
-const (
-	NSEC3FlagOptOut   NSEC3Flags = 1
-	NSEC3FlagReserved NSEC3Flags = 0
-)
+// const (
+// 	NSEC3FlagOptOut   NSEC3Flags = 1
+// 	NSEC3FlagReserved NSEC3Flags = 0
+// )
 
-func (rdata *DNSRDATANSEC3) Type() DNSType {
-	return DNSRRTypeNSEC3
-}
+// func (rdata *DNSRDATANSEC3) Type() DNSType {
+// 	return DNSRRTypeNSEC3
+// }
 
-func (rdata *DNSRDATANSEC3) Size() int {
-	saltBytes := []byte(rdata.Salt)
-	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
-	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
-	size := 6 + len(saltBytes) + len(nextHashOwnerName) + len(typeBitMaps)
-	return size
-}
+// func (rdata *DNSRDATANSEC3) Size() int {
+// 	saltBytes := []byte(rdata.Salt)
+// 	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
+// 	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+// 	size := 6 + len(saltBytes) + len(nextHashOwnerName) + len(typeBitMaps)
+// 	return size
+// }
 
-func (rdata *DNSRDATANSEC3) String() string {
-	return fmt.Sprint(
-		"### RDATA Section ###\n",
-		"Hash Algorithm: ", rdata.HashAlgorithm,
-		"\nFlags: ", rdata.Flags,
-		"\nIterations: ", rdata.Iterations,
-		"\nSalt Length: ", rdata.SaltLength,
-		"\nSalt: ", rdata.Salt,
-		"\nHash Length: ", rdata.HashLength,
-		"\nNext Hashed Owner Name: ", rdata.NextHashedOwnerName,
-		"\nType Bit Maps: ", rdata.TypeBitMaps,
-	)
-}
+// func (rdata *DNSRDATANSEC3) String() string {
+// 	return fmt.Sprint(
+// 		"### RDATA Section ###\n",
+// 		"Hash Algorithm: ", rdata.HashAlgorithm,
+// 		"\nFlags: ", rdata.Flags,
+// 		"\nIterations: ", rdata.Iterations,
+// 		"\nSalt Length: ", rdata.SaltLength,
+// 		"\nSalt: ", rdata.Salt,
+// 		"\nHash Length: ", rdata.HashLength,
+// 		"\nNext Hashed Owner Name: ", rdata.NextHashedOwnerName,
+// 		"\nType Bit Maps: ", rdata.TypeBitMaps,
+// 	)
+// }
 
-func (rdata *DNSRDATANSEC3) Equal(rr DNSRRRDATA) bool {
-	rrnsec3, ok := rr.(*DNSRDATANSEC3)
-	if !ok {
-		return false
-	}
+// func (rdata *DNSRDATANSEC3) Equal(rr DNSRRRDATA) bool {
+// 	rrnsec3, ok := rr.(*DNSRDATANSEC3)
+// 	if !ok {
+// 		return false
+// 	}
 
-	typeList := make([]int, 0)
-	sort.Ints(typeList)
+// 	typeList := make([]int, 0)
+// 	sort.Ints(typeList)
 
-	for _, t := range rdata.TypeBitMaps {
-		typeList = append(typeList, int(t))
-	}
+// 	for _, t := range rdata.TypeBitMaps {
+// 		typeList = append(typeList, int(t))
+// 	}
 
-	rrTypeList := make([]int, 0)
-	for _, t := range rrnsec3.TypeBitMaps {
-		rrTypeList = append(rrTypeList, int(t))
-	}
-	sort.Ints(rrTypeList)
+// 	rrTypeList := make([]int, 0)
+// 	for _, t := range rrnsec3.TypeBitMaps {
+// 		rrTypeList = append(rrTypeList, int(t))
+// 	}
+// 	sort.Ints(rrTypeList)
 
-	if len(typeList) != len(rrTypeList) {
-		return false
-	}
-	for i := 0; i < len(typeList); i++ {
-		if typeList[i] != rrTypeList[i] {
-			return false
-		}
-	}
+// 	if len(typeList) != len(rrTypeList) {
+// 		return false
+// 	}
+// 	for i := 0; i < len(typeList); i++ {
+// 		if typeList[i] != rrTypeList[i] {
+// 			return false
+// 		}
+// 	}
 
-	return rdata.HashAlgorithm == rrnsec3.HashAlgorithm &&
-		rdata.Flags == rrnsec3.Flags &&
-		rdata.Iterations == rrnsec3.Iterations &&
-		rdata.Salt == rrnsec3.Salt &&
-		rdata.NextHashedOwnerName == rrnsec3.NextHashedOwnerName
-}
+// 	return rdata.HashAlgorithm == rrnsec3.HashAlgorithm &&
+// 		rdata.Flags == rrnsec3.Flags &&
+// 		rdata.Iterations == rrnsec3.Iterations &&
+// 		rdata.Salt == rrnsec3.Salt &&
+// 		rdata.NextHashedOwnerName == rrnsec3.NextHashedOwnerName
+// }
 
-func (rdata *DNSRDATANSEC3) HashOwnerName(ownerName string) []byte {
-	nextHashOwnerName := EncodeDomainName(&ownerName)
-	switch rdata.HashAlgorithm {
-	case DNSSECDigestTypeSHA1:
-		for i := 0; i <= int(rdata.Iterations); i++ {
-			digest := sha1.Sum(append(nextHashOwnerName, []byte(rdata.Salt)...))
-			nextHashOwnerName = digest[:]
-		}
-		return nextHashOwnerName
-	case DNSSECDigestTypeSHA256:
-		for i := 0; i <= int(rdata.Iterations); i++ {
-			digest := sha256.Sum256(append(nextHashOwnerName, []byte(rdata.Salt)...))
-			nextHashOwnerName = digest[:]
-		}
-	case DNSSECDigestTypeSHA384:
-		for i := 0; i <= int(rdata.Iterations); i++ {
-			digest := sha512.Sum384(append(nextHashOwnerName, []byte(rdata.Salt)...))
-			nextHashOwnerName = digest[:]
-		}
-	case DNSSECDigestTypeSHA512:
-		for i := 0; i <= int(rdata.Iterations); i++ {
-			digest := sha512.Sum512(append(nextHashOwnerName, []byte(rdata.Salt)...))
-			nextHashOwnerName = digest[:]
-		}
-	}
-	return nextHashOwnerName
-}
+// func (rdata *DNSRDATANSEC3) HashOwnerName(ownerName string) []byte {
+// 	nextHashOwnerName := EncodeDomainName(&ownerName)
+// 	switch rdata.HashAlgorithm {
+// 	case DNSSECDigestTypeSHA1:
+// 		for i := 0; i <= int(rdata.Iterations); i++ {
+// 			digest := sha1.Sum(append(nextHashOwnerName, []byte(rdata.Salt)...))
+// 			nextHashOwnerName = digest[:]
+// 		}
+// 		return nextHashOwnerName
+// 	case DNSSECDigestTypeSHA256:
+// 		for i := 0; i <= int(rdata.Iterations); i++ {
+// 			digest := sha256.Sum256(append(nextHashOwnerName, []byte(rdata.Salt)...))
+// 			nextHashOwnerName = digest[:]
+// 		}
+// 	case DNSSECDigestTypeSHA384:
+// 		for i := 0; i <= int(rdata.Iterations); i++ {
+// 			digest := sha512.Sum384(append(nextHashOwnerName, []byte(rdata.Salt)...))
+// 			nextHashOwnerName = digest[:]
+// 		}
+// 	case DNSSECDigestTypeSHA512:
+// 		for i := 0; i <= int(rdata.Iterations); i++ {
+// 			digest := sha512.Sum512(append(nextHashOwnerName, []byte(rdata.Salt)...))
+// 			nextHashOwnerName = digest[:]
+// 		}
+// 	}
+// 	return nextHashOwnerName
+// }
 
-func (rdata *DNSRDATANSEC3) Encode() []byte {
-	bytesArray := make([]byte, 0)
-	bytesArray = append(bytesArray, uint8(rdata.HashAlgorithm))
-	bytesArray = append(bytesArray, uint8(rdata.Flags))
-	bytesArray = append(bytesArray, byte(rdata.Iterations>>8), byte(rdata.Iterations))
-	if rdata.SaltLength == 0 {
-		bytesArray = append(bytesArray, uint8(len([]byte(rdata.Salt))))
-	} else {
-		bytesArray = append(bytesArray, rdata.SaltLength)
-	}
-	bytesArray = append(bytesArray, []byte(rdata.Salt)...)
-	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
-	if rdata.HashLength == 0 {
-		bytesArray = append(bytesArray, uint8(len(nextHashOwnerName)))
-	} else {
-		bytesArray = append(bytesArray, rdata.HashLength)
-	}
-	bytesArray = append(bytesArray, nextHashOwnerName...)
-	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
-	bytesArray = append(bytesArray, typeBitMaps...)
-	return bytesArray
-}
+// func (rdata *DNSRDATANSEC3) Encode() []byte {
+// 	bytesArray := make([]byte, 0)
+// 	bytesArray = append(bytesArray, uint8(rdata.HashAlgorithm))
+// 	bytesArray = append(bytesArray, uint8(rdata.Flags))
+// 	bytesArray = append(bytesArray, byte(rdata.Iterations>>8), byte(rdata.Iterations))
+// 	if rdata.SaltLength == 0 {
+// 		bytesArray = append(bytesArray, uint8(len([]byte(rdata.Salt))))
+// 	} else {
+// 		bytesArray = append(bytesArray, rdata.SaltLength)
+// 	}
+// 	bytesArray = append(bytesArray, []byte(rdata.Salt)...)
+// 	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
+// 	if rdata.HashLength == 0 {
+// 		bytesArray = append(bytesArray, uint8(len(nextHashOwnerName)))
+// 	} else {
+// 		bytesArray = append(bytesArray, rdata.HashLength)
+// 	}
+// 	bytesArray = append(bytesArray, nextHashOwnerName...)
+// 	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+// 	bytesArray = append(bytesArray, typeBitMaps...)
+// 	return bytesArray
+// }
 
-func (rdata *DNSRDATANSEC3) EncodeToBuffer(buffer []byte) (int, error) {
-	saltBytes := []byte(rdata.Salt)
-	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
-	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
-	size := 6 + len(saltBytes) + len(nextHashOwnerName) + len(typeBitMaps)
-	if len(buffer) < size {
-		return -1, fmt.Errorf("buffer length %d is less than NSEC3 RDATA size %d", len(buffer), size)
-	}
-	buffer[0] = byte(rdata.HashAlgorithm)
-	buffer[1] = uint8(rdata.Flags)
-	binary.BigEndian.PutUint16(buffer[2:], rdata.Iterations)
-	if rdata.SaltLength == 0 {
-		buffer[4] = byte(len(saltBytes))
-	} else {
-		buffer[4] = rdata.SaltLength
-	}
-	copy(buffer[5:], saltBytes)
-	if rdata.HashLength == 0 {
-		buffer[5+len(saltBytes)] = byte(len(nextHashOwnerName))
-	} else {
-		buffer[5+len(saltBytes)] = rdata.HashLength
-	}
-	buffer[6+len(saltBytes)] = byte(len(nextHashOwnerName))
-	copy(buffer[7+len(saltBytes):], nextHashOwnerName)
-	copy(buffer[7+len(saltBytes)+len(nextHashOwnerName):], typeBitMaps)
-	return size, nil
-}
+// func (rdata *DNSRDATANSEC3) EncodeToBuffer(buffer []byte) (int, error) {
+// 	saltBytes := []byte(rdata.Salt)
+// 	nextHashOwnerName := rdata.HashOwnerName(rdata.NextHashedOwnerName)
+// 	typeBitMaps := EncodeTypeBitMaps(rdata.TypeBitMaps)
+// 	size := 6 + len(saltBytes) + len(nextHashOwnerName) + len(typeBitMaps)
+// 	if len(buffer) < size {
+// 		return -1, fmt.Errorf("buffer length %d is less than NSEC3 RDATA size %d", len(buffer), size)
+// 	}
+// 	buffer[0] = byte(rdata.HashAlgorithm)
+// 	buffer[1] = uint8(rdata.Flags)
+// 	binary.BigEndian.PutUint16(buffer[2:], rdata.Iterations)
+// 	if rdata.SaltLength == 0 {
+// 		buffer[4] = byte(len(saltBytes))
+// 	} else {
+// 		buffer[4] = rdata.SaltLength
+// 	}
+// 	copy(buffer[5:], saltBytes)
+// 	if rdata.HashLength == 0 {
+// 		buffer[5+len(saltBytes)] = byte(len(nextHashOwnerName))
+// 	} else {
+// 		buffer[5+len(saltBytes)] = rdata.HashLength
+// 	}
+// 	buffer[6+len(saltBytes)] = byte(len(nextHashOwnerName))
+// 	copy(buffer[7+len(saltBytes):], nextHashOwnerName)
+// 	copy(buffer[7+len(saltBytes)+len(nextHashOwnerName):], typeBitMaps)
+// 	return size, nil
+// }
 
-func (rdata *DNSRDATANSEC3) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
-	var err error
-	var rdEnd = offset + rdLen
-	if rdLen < 6 {
-		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: NSEC3 RDATA size %d is less than 6", rdLen)
-	}
-	if len(buffer) < rdEnd {
-		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: buffer length %d is less than offset %d + NSEC3 RDATA size %d", len(buffer), offset, rdata.Size())
-	}
-	rdata.HashAlgorithm = DNSSECDigestType(buffer[offset])
-	rdata.Flags = NSEC3Flags(buffer[offset+1])
-	rdata.Iterations = binary.BigEndian.Uint16(buffer[offset+2:])
-	rdata.SaltLength = buffer[offset+4]
-	rdata.Salt = string(buffer[offset+5 : offset+5+int(rdata.SaltLength)])
-	if err != nil {
-		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: decode NSEC3 Salt failed.\n%v", err)
-	}
-	offset += 5 + int(rdata.SaltLength)
-	rdata.HashLength = buffer[offset]
-	rdata.NextHashedOwnerName = base32.StdEncoding.EncodeToString(buffer[offset+1 : offset+1+int(rdata.HashLength)])
-	if err != nil {
-		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: decode NSEC3 Next Hashed Owner Name failed.\n%v", err)
-	}
-	rdata.TypeBitMaps = DecodeTypeBitMaps(buffer[offset+1+int(rdata.HashLength) : rdEnd])
-	return rdEnd, nil
-}
+// func (rdata *DNSRDATANSEC3) DecodeFromBuffer(buffer []byte, offset int, rdLen int) (int, error) {
+// 	var err error
+// 	var rdEnd = offset + rdLen
+// 	if rdLen < 6 {
+// 		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: NSEC3 RDATA size %d is less than 6", rdLen)
+// 	}
+// 	if len(buffer) < rdEnd {
+// 		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: buffer length %d is less than offset %d + NSEC3 RDATA size %d", len(buffer), offset, rdata.Size())
+// 	}
+// 	rdata.HashAlgorithm = DNSSECDigestType(buffer[offset])
+// 	rdata.Flags = NSEC3Flags(buffer[offset+1])
+// 	rdata.Iterations = binary.BigEndian.Uint16(buffer[offset+2:])
+// 	rdata.SaltLength = buffer[offset+4]
+// 	rdata.Salt = string(buffer[offset+5 : offset+5+int(rdata.SaltLength)])
+// 	if err != nil {
+// 		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: decode NSEC3 Salt failed.\n%v", err)
+// 	}
+// 	offset += 5 + int(rdata.SaltLength)
+// 	rdata.HashLength = buffer[offset]
+// 	rdata.NextHashedOwnerName = base32.StdEncoding.EncodeToString(buffer[offset+1 : offset+1+int(rdata.HashLength)])
+// 	if err != nil {
+// 		return -1, fmt.Errorf("method DNSRDATANSEC3 DecodeFromBuffer failed: decode NSEC3 Next Hashed Owner Name failed.\n%v", err)
+// 	}
+// 	rdata.TypeBitMaps = DecodeTypeBitMaps(buffer[offset+1+int(rdata.HashLength) : rdEnd])
+// 	return rdEnd, nil
+// }
 
 // DNSKEY RDATA 编码格式
 // 1 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 2 2 2 2 3 3

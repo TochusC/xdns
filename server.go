@@ -13,23 +13,27 @@ import (
 	"net"
 )
 
-// xdnsServer 表示 xdns 服务器
+// XdnsServer 表示 xdns 服务器
 // 其包含以下三部分：
 //   - ServerConfig: DNS 服务器配置
 //   - Sniffer: 数据包嗅探器
 //   - Handler: 数据包处理器
 type XdnsServer struct {
-	SeverConfig DNSServerConfig
+	Config ServerConfig
 	// xdns 服务器的日志
-	xdnsLogger *log.Logger
+	Logger *log.Logger
 
 	Netter   Netter
 	Cacher   Cacher
 	Responer Responser
 }
 
-func NewxdnsServer(serverConf DNSServerConfig, responser Responser) *xdnsServer {
-	xdnsLogger := log.New(serverConf.LogWriter, "xdns: ", log.LstdFlags)
+// NewXdnsServer 创建一个新的 xdns 服务器实例
+// 该函数接受一个 ServerConfig 和一个 Responser 实例作为参数，
+// 并返回一个新的 XdnsServer 实例。
+// 该函数会初始化一个新的日志记录器、数据包嗅探器和缓存器。
+func NewXdnsServer(serverConf ServerConfig, responser Responser) *XdnsServer {
+	Logger := log.New(serverConf.LogWriter, "xdns: ", log.LstdFlags)
 
 	netter := NewNetter(NetterConfig{
 		Port:      serverConf.Port,
@@ -41,9 +45,9 @@ func NewxdnsServer(serverConf DNSServerConfig, responser Responser) *xdnsServer 
 		LogWriter:     serverConf.LogWriter,
 	})
 
-	return &xdnsServer{
-		SeverConfig: serverConf,
-		xdnsLogger:  xdnsLogger,
+	return &XdnsServer{
+		Config: serverConf,
+		Logger: Logger,
 
 		Netter:   *netter,
 		Cacher:   *cacher,
@@ -51,31 +55,46 @@ func NewxdnsServer(serverConf DNSServerConfig, responser Responser) *xdnsServer 
 	}
 }
 
-func (s *xdnsServer) HandleConnection(connInfo ConnectionInfo) {
+// HandleConnection 处理连接信息
+// 该函数接受一个 ConnectionInfo 实例作为参数，
+// 并根据该连接的信息回复 DNS 响应。
+func (s *XdnsServer) HandleConnection(connInfo ConnectionInfo) {
 	// 从缓存中查找响应
-	if s.SeverConfig.EnebleCache {
+	if s.Config.EnableCache {
 		cache, err := s.Cacher.FetchCache(connInfo)
 		if err == nil {
 			s.Netter.Send(connInfo, cache)
 			return
 		}
 	}
+
+	// 如果缓存未命中，则生成响应
 	resp, err := s.Responer.Response(connInfo)
 	if err != nil {
-		s.xdnsLogger.Printf("Error generating response: %v", err)
+		s.Logger.Printf("Error generating response: %v", err)
 		return
 	}
 
+	// 如果启用 TCP 且响应长度超过阈值，则截断响应
+	if s.Config.EnableTCP && len(resp) > s.Config.TCPThreshold && connInfo.Protocol != "tcp" {
+		resp = InitTruncatedResponse(connInfo.Packet)
+		s.Logger.Printf("Truncated response to: %s, length: %d.", connInfo.Address, len(resp))
+	}
+
+	// 发送响应
 	s.Netter.Send(connInfo, resp)
-	if s.SeverConfig.EnebleCache {
+
+	// 如果启用缓存，则将响应存储到缓存中
+	if s.Config.EnableCache {
 		s.Cacher.CacheResponse(resp)
 	}
 }
 
 // Start 启动 xdns 服务器
-func (s *xdnsServer) Start() {
+func (s *XdnsServer) Start() {
 	// xdns 启动！
-	s.xdnsLogger.Printf("xdns Starts!")
+
+	s.Logger.Printf("xdns Starts!")
 
 	connChan := s.Netter.Sniff()
 	for connInfo := range connChan {
@@ -83,8 +102,8 @@ func (s *xdnsServer) Start() {
 	}
 }
 
-// DNSServerConfig 记录 DNS 服务器的相关配置
-type DNSServerConfig struct {
+// ServerConfig 记录 DNS 服务器的相关配置。
+type ServerConfig struct {
 	// DNS 服务器的 IP 地址
 	IP net.IP
 	// DNS 服务器的端口
@@ -93,10 +112,11 @@ type DNSServerConfig struct {
 	// 日志输出
 	LogWriter io.Writer
 
-	// 线程池容量
-	PoolCapcity int
-
 	// 缓存功能
-	EnebleCache   bool
+	EnableCache   bool
 	CacheLocation string
+
+	// TCP 传输
+	EnableTCP    bool
+	TCPThreshold int
 }

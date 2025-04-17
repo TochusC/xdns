@@ -7,8 +7,9 @@ package xdns
 
 import (
 	"fmt"
+	"sort"
 	"strings"
-	"time"
+	"sync"
 
 	"github.com/tochusc/xdns/dns"
 	"github.com/tochusc/xdns/dns/xperi"
@@ -29,7 +30,7 @@ type Responser interface {
 // DullResponser 是一个"笨笨的" 回复器实现。
 // 它会回复所查询名称的 A 记录，地址指向服务器的 IP 地址。
 type DullResponser struct {
-	ServerConf DNSServerConfig
+	ServerConf ServerConfig
 }
 
 // Response 根据 DNS 查询信息生成 DNS 回复信息。
@@ -165,7 +166,7 @@ func FixCount(resp *dns.DNSMessage) {
 // 它会回复启用DNSSEC签名后的A记录信息，
 // 基本上是开启DNSSEC后的 “笨笨回复器”。
 type DNSSECResponser struct {
-	ServerConf    DNSServerConfig
+	ServerConf    ServerConfig
 	DNSSECManager BaseManager
 }
 
@@ -204,7 +205,7 @@ func (d *DNSSECResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, err
 	}
 
 	// 为回复信息添加 DNSSEC 记录
-	d.DNSSECManager.EnableDNSSEC(qry, &resp)
+	EnableDNSSEC(qry, &resp, d.DNSSECManager.Config, &d.DNSSECManager.MaterialMap)
 
 	// 设置RCODE，修正计数字段，返回回复信息
 	resp.Header.RCode = dns.DNSResponseCodeNoErr
@@ -218,34 +219,55 @@ func (d *DNSSECResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, err
 // 如果要实现更为复杂的 DNSSEC 管理逻辑，可以根据需求自定义 BaseManager 结构体。
 type BaseManager struct {
 	// DNSSEC 配置
-	DNSSECConf DNSSECConfig
+	Config DNSSECConfig
 	// 区域名与其相应 DNSSEC 材料的映射
 	// 在初始化 DNSSEC Responser 时需要为其手动添加信任锚点
-	DNSSECMap map[string]DNSSECMaterial
+	MaterialMap sync.Map
 }
 
 // DNSSECConfig 表示 DNSSEC 签名配置
 // 如果需要多种签名配置，可以根据需求实现自己的签名配置结构体
 type DNSSECConfig struct {
 	// DNSSEC 签名算法
-	DAlgo dns.DNSSECAlgorithm
+	Algo dns.DNSSECAlgorithm
 	// DNSSEC 摘要算法
-	DType dns.DNSSECDigestType
+	Type dns.DNSSECDigestType
+
+	// 签名过期时间
+	Expiration uint32
+	// 签名生效时间
+	Inception uint32
 }
 
 // DNSSECMaterial 表示签名一个区域所需的 DNSSEC 材料
 // 如果需要更复杂的处理逻辑，可以根据需求实现自己的 DNSSEC 材料结构体
 type DNSSECMaterial struct {
-	// KSKTag 是区域的 KSK 标签
-	KSKTag int
-	// ZSKTag 是区域的 ZSK 标签
+	// KeyTag
 	ZSKTag int
-	// PrivateKSK 是区域的 KSK 私钥
-	PrivateKSK []byte
-	// PrivateZSK 是区域的 ZSK 私钥
-	PrivateZSK []byte
-	// DNSKEYRespSec 储存区域的 DNSKEY 记录
-	DNSKEYRespSec []dns.DNSResourceRecord
+	KSKTag int
+
+	// 公钥RDATA
+	ZSKRecord dns.DNSResourceRecord
+	KSKRecord dns.DNSResourceRecord
+
+	// 私钥字节
+	ZSKPriv []byte
+	KSKPriv []byte
+}
+
+type CryptoMaterial struct {
+	// 签名算法
+	Algorithm dns.DNSSECAlgorithm
+	// 签名过期时间
+	Expiration uint32
+	// 签名生效时间
+	Inception uint32
+	// 密钥标签
+	KeyTag uint16
+	// 签名者名称
+	SignerName string
+	// 私钥字节
+	PrivateKey []byte
 }
 
 // EnableDNSSEC 检查 DNS 回复信息，并对其进行 DNSSEC 签名，
@@ -257,10 +279,45 @@ type DNSSECMaterial struct {
 // 该函数会为传入的回复信息自动添加相关的 DNSSEC 记录，
 // 目前尚未实现 规范化排序 功能，需要确保传入回复信息中的记录已经按照规范化排序，
 // 否则会导致签名失败。
-func (d *BaseManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
+func EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage, dConf DNSSECConfig, dMap *sync.Map) {
+	qName := strings.ToLower(qry.Question[0].Name)
+	upperName := dns.GetUpperDomainName(&qName)
+	// 获取 DNSSEC 材料
+	dMat := GetDNSSECMaterial(upperName, dMap, dConf)
+	// 获取 ZSK 的相关信息
+	zTag := dMat.ZSKTag
+	zPriv := dMat.ZSKPriv
+	zAlgo := dMat.ZSKRecord.RData.(*dns.DNSRDATADNSKEY).Algorithm
+
+	cMat := CryptoMaterial{
+		Algorithm:  zAlgo,
+		Expiration: dConf.Expiration,
+		Inception:  dConf.Inception,
+		KeyTag:     uint16(zTag),
+		SignerName: upperName,
+		PrivateKey: zPriv,
+	}
+
 	// 签名回答部分
+	resp.Answer = SignSection(resp.Answer, cMat)
+	// 签名权威部分
+	resp.Authority = SignSection(resp.Authority, cMat)
+	// 签名附加部分
+	resp.Additional = SignSection(resp.Additional, cMat)
+
+	// 建立信任链
+	EstablishCoT(qry, resp, dConf, dMap)
+}
+
+// SignSection 为指定的DNS回复消息中的区域(Answer, Authority, Addition)进行签名
+// 其接受参数为：
+//   - section []dns.DNSResourceRecord，待签名的区域(Answer, Authority, Addition)信息
+//
+// 返回值为：
+//   - []dns.DNSResourceRecord，签名后的区域(Answer, Authority, Addition)信息
+func SignSection(section dns.DNSResponseSection, crypto CryptoMaterial) []dns.DNSResourceRecord {
 	rMap := make(map[string][]dns.DNSResourceRecord)
-	for _, rr := range resp.Answer {
+	for _, rr := range section {
 		if rr.Type == dns.DNSRRTypeRRSIG {
 			continue
 		}
@@ -268,70 +325,28 @@ func (d *BaseManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
 		rMap[rid] = append(rMap[rid], rr)
 	}
 	for _, rrset := range rMap {
-		uName := dns.GetUpperDomainName(&rrset[0].Name)
-		dMat := GetDNSSECMaterial(d.DNSSECConf, d.DNSSECMap, uName)
-		sig := xperi.GenerateRRRRSIG(
-			rrset,
-			d.DNSSECConf.DAlgo,
-			uint32(time.Now().UTC().Unix()+86400-3600),
-			uint32(time.Now().UTC().Unix()-3600),
-			uint16(dMat.ZSKTag),
-			uName,
-			dMat.PrivateZSK,
-		)
-		resp.Answer = append(resp.Answer, sig)
+		sig := SignSet(rrset, crypto)
+		section = append(section, sig)
 	}
+	return section
+}
 
-	// 签名权威部分
-	rMap = make(map[string][]dns.DNSResourceRecord)
-	for _, rr := range resp.Authority {
-		if rr.Type == dns.DNSRRTypeRRSIG {
-			continue
-		}
-		rid := rr.Name + rr.Type.String() + rr.Class.String()
-		rMap[rid] = append(rMap[rr.Name], rr)
-	}
-	for _, rrset := range rMap {
-		uName := dns.GetUpperDomainName(&rrset[0].Name)
-		dMat := GetDNSSECMaterial(d.DNSSECConf, d.DNSSECMap, uName)
-		sig := xperi.GenerateRRRRSIG(
-			rrset,
-			d.DNSSECConf.DAlgo,
-			uint32(time.Now().UTC().Unix()+86400-3600),
-			uint32(time.Now().UTC().Unix()-3600),
-			uint16(dMat.ZSKTag),
-			uName,
-			dMat.PrivateZSK,
-		)
-		resp.Authority = append(resp.Authority, sig)
-	}
+// SignSet 为指定的 RR 集合签名
+// 其接受参数为
+//   - rrset []dns.DNSResourceRecord，RR 集合
+func SignSet(rrset []dns.DNSResourceRecord, crypto CryptoMaterial) dns.DNSResourceRecord {
+	sort.Sort(dns.ByCanonicalOrder(rrset))
 
-	// 签名附加部分
-	rMap = make(map[string][]dns.DNSResourceRecord)
-	for _, rr := range resp.Additional {
-		if rr.Type == dns.DNSRRTypeRRSIG {
-			continue
-		}
-		rid := rr.Name + rr.Type.String() + rr.Class.String()
-		rMap[rid] = append(rMap[rr.Name], rr)
-	}
-	for _, rrset := range rMap {
-		uName := dns.GetUpperDomainName(&rrset[0].Name)
-		dMat := GetDNSSECMaterial(d.DNSSECConf, d.DNSSECMap, uName)
-		sig := xperi.GenerateRRRRSIG(
-			rrset,
-			d.DNSSECConf.DAlgo,
-			uint32(time.Now().UTC().Unix()+86400-3600),
-			uint32(time.Now().UTC().Unix()-3600),
-			uint16(dMat.ZSKTag),
-			uName,
-			dMat.PrivateZSK,
-		)
-		resp.Additional = append(resp.Additional, sig)
-	}
-
-	// 建立信任链
-	EstablishToC(qry, d.DNSSECConf, d.DNSSECMap, resp)
+	sig := xperi.GenerateRRRRSIG(
+		rrset,
+		crypto.Algorithm,
+		crypto.Expiration,
+		crypto.Inception,
+		crypto.KeyTag,
+		crypto.SignerName,
+		crypto.PrivateKey,
+	)
+	return sig
 }
 
 // CreateDNSSECMaterial 根据 DNSSEC 配置生成指定区域的 DNSSEC 材料
@@ -344,143 +359,85 @@ func (d *BaseManager) EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage) {
 //
 // 该函数会为指定区域生成一个 KSK 和一个 ZSK，并生成一个 DNSKEY 记录和一个 RRSIG 记录。
 func CreateDNSSECMaterial(dConf DNSSECConfig, zName string) DNSSECMaterial {
-	pubKSK, privKSKBytes := xperi.GenerateRRDNSKEY(zName, dConf.DAlgo, dns.DNSKEYFlagSecureEntryPoint)
-	pubZSK, privZSKBytes := xperi.GenerateRRDNSKEY(zName, dConf.DAlgo, dns.DNSKEYFlagZoneKey)
-	kSKTag := xperi.CalculateKeyTag(*pubKSK.RData.(*dns.DNSRDATADNSKEY))
-	zSKTag := xperi.CalculateKeyTag(*pubZSK.RData.(*dns.DNSRDATADNSKEY))
-	// 生成密钥集签名
-	keySig := xperi.GenerateRRRRSIG(
-		[]dns.DNSResourceRecord{
-			pubZSK,
-			pubKSK,
-		},
-		dns.DNSSECAlgorithmECDSAP384SHA384,
-		uint32(time.Now().UTC().Unix()+86400-3600),
-		uint32(time.Now().UTC().Unix()-3600),
-		kSKTag,
-		zName,
-		privKSKBytes,
-	)
-	// 生成 DNSSEC 材料
-	anSec := []dns.DNSResourceRecord{
-		pubZSK,
-		pubKSK,
-		keySig,
-	}
+	kskRR, kskPriv := xperi.GenerateRRDNSKEY(zName, dConf.Algo, dns.DNSKEYFlagSecureEntryPoint)
+	zskRR, zskPriv := xperi.GenerateRRDNSKEY(zName, dConf.Algo, dns.DNSKEYFlagZoneKey)
+	kSKTag := xperi.CalculateKeyTag(*kskRR.RData.(*dns.DNSRDATADNSKEY))
+	zSKTag := xperi.CalculateKeyTag(*zskRR.RData.(*dns.DNSRDATADNSKEY))
+
 	return DNSSECMaterial{
-		KSKTag:        int(kSKTag),
-		ZSKTag:        int(zSKTag),
-		PrivateKSK:    privKSKBytes,
-		PrivateZSK:    privZSKBytes,
-		DNSKEYRespSec: anSec,
+		ZSKTag: int(zSKTag),
+		KSKTag: int(kSKTag),
+
+		ZSKRecord: zskRR,
+		KSKRecord: kskRR,
+
+		ZSKPriv: zskPriv,
+		KSKPriv: kskPriv,
 	}
 }
 
 // GetDNSSECMaterial 获取指定区域的 DNSSEC 材料
 // 如果该区域的 DNSSEC 材料不存在，则会根据 DNSSEC 配置生成一个
-func GetDNSSECMaterial(dConf DNSSECConfig, dMap map[string]DNSSECMaterial, zName string) DNSSECMaterial {
-	dMat, ok := dMap[zName]
-	if !ok {
-		dMap[zName] = CreateDNSSECMaterial(dConf, zName)
-		dMat = dMap[zName]
+func GetDNSSECMaterial(zName string, dMap *sync.Map, dConf DNSSECConfig) DNSSECMaterial {
+	// 从映射中获取 DNSSEC 材料
+	if dMat, ok := dMap.Load(zName); ok {
+		return dMat.(DNSSECMaterial)
+	} else {
+		c := CreateDNSSECMaterial(dConf, zName)
+		// 将生成的 DNSSEC 材料存储到映射中
+		dMap.Store(zName, c)
+		return c
 	}
-	return dMat
 }
 
-// EstablishToC 根据查询自动添加 DNSKEY，DS，RRSIG 记录
+// EstablishCoT 根据查询自动添加 DNSKEY，DS，RRSIG 记录
 // 自动完成信任链（Trust of Chain）的建立。
 // 其接受参数为：
 //   - qry dns.DNSMessage，查询信息
 //   - dConf DNSSECConfig，DNSSEC 配置
 //   - dMap map[string]DNSSECMaterial，区域名与其相应 DNSSEC 材料的映射
 //   - resp *dns.DNSMessage，回复信息
-func EstablishToC(qry dns.DNSMessage, dConf DNSSECConfig, dMap map[string]DNSSECMaterial, resp *dns.DNSMessage) error {
+func EstablishCoT(qry dns.DNSMessage, resp *dns.DNSMessage, dConf DNSSECConfig, dMap *sync.Map) error {
 	// 提取查询类型和查询名称
 	qType := qry.Question[0].Type
 	qName := strings.ToLower(qry.Question[0].Name)
-	dMat := GetDNSSECMaterial(dConf, dMap, qName)
+	rrset := []dns.DNSResourceRecord{}
 
 	if qType == dns.DNSRRTypeDNSKEY {
-		// 如果查询类型为 DNSKEY，则返回相应的 DNSKEY 记录
-		resp.Answer = append(resp.Answer, dMat.DNSKEYRespSec...)
+		// 如果查询类型为 DNSKEY，
+		dMat := GetDNSSECMaterial(qName, dMap, dConf)
+		rrset = append(rrset, dMat.ZSKRecord, dMat.KSKRecord)
+		resp.Answer = append(resp.Answer, dMat.ZSKRecord, dMat.KSKRecord)
+
+		// 生成密钥集签名
+		sig := SignSet(rrset, CryptoMaterial{})
+
+		rrset = append(rrset, sig)
+		resp.Answer = append(resp.Answer, rrset...)
+
 		resp.Header.RCode = dns.DNSResponseCodeNoErr
 	} else if qType == dns.DNSRRTypeDS {
 		// 如果查询类型为 DS，则生成 DS 记录
-		dMat := GetDNSSECMaterial(dConf, dMap, qName)
-		ds := xperi.GenerateRRDS(
-			qName,
-			*dMat.DNSKEYRespSec[1].RData.(*dns.DNSRDATADNSKEY),
-			dConf.DType,
-		)
+		dMat := GetDNSSECMaterial(qName, dMap, dConf)
+		// 生成正确DS记录
+		kskRData, _ := dMat.KSKRecord.RData.(*dns.DNSRDATADNSKEY)
+		ds := xperi.GenerateRRDS(qName, *kskRData, dConf.Type)
+		rrset = append(rrset, ds)
 
-		// 生成 ZSK 签名
 		upName := dns.GetUpperDomainName(&qName)
-		dMat = GetDNSSECMaterial(dConf, dMap, upName)
-		sig := xperi.GenerateRRRRSIG(
-			[]dns.DNSResourceRecord{ds},
-			dConf.DAlgo,
-			uint32(time.Now().UTC().Unix()+86400-3600),
-			uint32(time.Now().UTC().Unix()-3600),
-			uint16(dMat.ZSKTag),
-			upName,
-			dMat.PrivateZSK,
-		)
-		resp.Answer = append(resp.Answer, ds, sig)
-		resp.Header.RCode = dns.DNSResponseCodeNoErr
+		dMat = GetDNSSECMaterial(upName, dMap, dConf)
+		// 签名
+		sig := SignSet(rrset, CryptoMaterial{})
+		rrset = append(rrset, sig)
+		resp.Answer = append(resp.Answer, sig)
 	}
 	FixCount(resp)
 	return nil
 }
 
-// InitTrustAnchor 根据 DNSSEC 配置生成指定区域的信任锚点
-// 其接受参数为：
-//   - zName string，区域名
-//   - dConf DNSSECConfig，DNSSEC 配置
-//   - kBytes []byte，KSK 公钥
-//   - pkBytes []byte，KSK 私钥
-//
-// 返回值为：
-//   - map[string]DNSSECMaterial，生成的信任锚点
-func InitTrustAnchor(zName string, dConf DNSSECConfig,
-	kBytes, pkBytes []byte) map[string]DNSSECMaterial {
-	kRDATA := dns.DNSRDATADNSKEY{
-		Flags:     dns.DNSKEYFlagSecureEntryPoint,
-		Protocol:  dns.DNSKEYProtocolValue,
-		Algorithm: dConf.DAlgo,
-		PublicKey: kBytes,
-	}
-	zRR, pzBytes := xperi.GenerateRRDNSKEY(zName, dConf.DAlgo, dns.DNSKEYFlagZoneKey)
-	zRDATA := zRR.RData.(*dns.DNSRDATADNSKEY)
-
-	kTag := xperi.CalculateKeyTag(kRDATA)
-	zTag := xperi.CalculateKeyTag(*zRDATA)
-
-	kRR := dns.DNSResourceRecord{
-		Name:  zName,
-		Type:  dns.DNSRRTypeDNSKEY,
-		Class: dns.DNSClassIN,
-		TTL:   86400,
-		RDLen: uint16(kRDATA.Size()),
-		RData: &kRDATA,
-	}
-
-	kSig := xperi.GenerateRRRRSIG(
-		[]dns.DNSResourceRecord{zRR, kRR},
-		dConf.DAlgo,
-		uint32(time.Now().UTC().Unix()+86400-3600),
-		uint32(time.Now().UTC().Unix()-3600),
-		uint16(kTag),
-		zName,
-		pkBytes,
-	)
-
-	return map[string]DNSSECMaterial{
-		zName: {
-			KSKTag:        int(kTag),
-			ZSKTag:        int(zTag),
-			PrivateKSK:    pkBytes,
-			PrivateZSK:    pzBytes,
-			DNSKEYRespSec: []dns.DNSResourceRecord{zRR, kRR, kSig},
-		},
-	}
+func InitTruncatedResponse(qry []byte) []byte {
+	resp := make([]byte, len(qry))
+	copy(resp, qry)
+	resp[2] |= 0x86 // 设置QR, TC, AA位为1
+	return resp
 }

@@ -567,16 +567,16 @@ func TestDNSRDATANSECDecodeFromBuffer(t *testing.T) {
 	}
 }
 
-// 测试 NSEC3 RDATA
-var testedDNSRDATANSEC3 = DNSRDATANSEC3{
-	HashAlgorithm:       DNSSECDigestTypeSHA1,
-	Flags:               NSEC3FlagOptOut,
-	Iterations:          12,
-	SaltLength:          0,
-	Salt:                "aabbccdd",
-	NextHashedOwnerName: "example",
-	TypeBitMaps:         []DNSType{DNSRRTypeA, DNSRRTypeRRSIG},
-}
+// // 测试 NSEC3 RDATA
+// var testedDNSRDATANSEC3 = DNSRDATANSEC3{
+// 	HashAlgorithm:       DNSSECDigestTypeSHA1,
+// 	Flags:               NSEC3FlagOptOut,
+// 	Iterations:          12,
+// 	SaltLength:          0,
+// 	Salt:                "aabbccdd",
+// 	NextHashedOwnerName: "example",
+// 	TypeBitMaps:         []DNSType{DNSRRTypeA, DNSRRTypeRRSIG},
+// }
 
 // 1 1
 // 0 12
@@ -588,17 +588,17 @@ var testedDNSRDATANSEC3 = DNSRDATANSEC3{
 // 231 187 154 234 235
 // 204 161 95 168 4
 // 0 1 64
-func TestDNSRDATANSEC3(t *testing.T) {
-	encodedDNSRDATANSEC3 := testedDNSRDATANSEC3.Encode()
-	t.Errorf("%v, %d", encodedDNSRDATANSEC3, len(encodedDNSRDATANSEC3))
-	decodedDNSRDATANSEC3 := DNSRDATANSEC3{}
-	_, err := decodedDNSRDATANSEC3.DecodeFromBuffer(encodedDNSRDATANSEC3, 0, len(encodedDNSRDATANSEC3))
-	if err != nil {
-		t.Errorf("function DNSRDATANSEC3DecodeFromBuffer() failed:\n%s", err)
-	}
-	t.Errorf("%s", decodedDNSRDATANSEC3.String())
+// func TestDNSRDATANSEC3(t *testing.T) {
+// 	encodedDNSRDATANSEC3 := testedDNSRDATANSEC3.Encode()
+// 	t.Errorf("%v, %d", encodedDNSRDATANSEC3, len(encodedDNSRDATANSEC3))
+// 	decodedDNSRDATANSEC3 := DNSRDATANSEC3{}
+// 	_, err := decodedDNSRDATANSEC3.DecodeFromBuffer(encodedDNSRDATANSEC3, 0, len(encodedDNSRDATANSEC3))
+// 	if err != nil {
+// 		t.Errorf("function DNSRDATANSEC3DecodeFromBuffer() failed:\n%s", err)
+// 	}
+// 	t.Errorf("%s", decodedDNSRDATANSEC3.String())
 
-}
+// }
 
 // 测试 DS RDATA
 

@@ -79,6 +79,18 @@ func GetUpperDomainName(name *string) string {
 	return (*name)[strings.Index(*name, ".")+1:]
 }
 
+// GetQueryQuestionName 返回 DNS 查询报文中的查询问题名称。
+//   - 其接收参数为 DNS 报文，
+//   - 返回值为查询问题名称的字符串切片。
+func GetQueryQuestionName(qry DNSMessage) []string {
+	nList := make([]string, len(qry.Question))
+	for i := 0; i < len(qry.Question); i++ {
+		name := strings.ToLower(qry.Question[0].Name)
+		nList[i] = name
+	}
+	return nList
+}
+
 // SplitDomainName 分割域名，其接受域名字符串，并返回分割后的字符串切片。
 // 若域名为根域名，则返回长度为0的字符串切片。
 func SplitDomainName(name *string) []string {
