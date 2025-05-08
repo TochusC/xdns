@@ -4,7 +4,14 @@
 // 其目前包括 <domain-name>, <character-string> 的编解码函数。
 // 关于 <domain-name> 及 <character-string> 的详细定义
 // 请参阅 RFC 1035 3.3节 Standard RRs。
-//
+package dns
+
+import (
+	"encoding/binary"
+	"fmt"
+	"strings"
+)
+
 // # <domain-name>
 //
 // 对于 <domain-name> 的编码，可接受 绝对域名 及 相对域名，
@@ -34,27 +41,104 @@
 //   - 以指针结尾的标签序列。
 //
 // 详细内容请参阅 RFC 1035 4.1.4. Message compression
-//
-// # <character-string>
-//
-// [ RFC 1035 ] 规定了 DNS 字符串的相关定义。
-// DNS 字符串是一系列字符的序列，其编码格式为：字符串长度 + 字符串内容。
-// 字符串长度为一个字节，表示字符串的长度，字符串内容为字符串的实际内容。
-// 长度字节为0时，表示空字符串，长度最大为255，即 DNS 字符串最大长度为255。
 
-package dns
-
-import (
-	"encoding/binary"
-	"fmt"
-	"strings"
+const (
+	NamePointerFlag = 0xC0
 )
 
-// GetDomainNameWireLen 返回域名的 编码格式长度。
-//   - 其接收参数为 域名字符串 的指针，
-//   - 返回值为域名的 编码格式长度。
-//
-// 可以接收绝对域名及相对域名，所有域名均以绝对域名的长度计算。
+type DNSName struct {
+	DomainName string
+	WiredBytes []byte
+}
+
+func (dn *DNSName) InitFromName(name string) {
+	dn.DomainName = name
+	dn.WiredBytes = EncodeDomainName(&name)
+}
+
+func (dn *DNSName) InitFromWiredBytes(data []byte) {
+	dn.DomainName = DecodeDomainName(data)
+	dn.WiredBytes = data
+}
+
+func (dn *DNSName) InitFromBuffer(data []byte, offset int) (int, error) {
+	name, nOffset, err := DecodeDomainNameFromBuffer(data, offset)
+	if err != nil {
+		return -1, fmt.Errorf("InitFromBuffer error: %s", err)
+	}
+	dn.DomainName = name
+	dn.WiredBytes = data[offset:nOffset]
+	return nOffset, nil
+}
+
+func NewDNSName(name string) *DNSName {
+	return &DNSName{
+		DomainName: name,
+		WiredBytes: EncodeDomainName(&name),
+	}
+}
+
+func NewDNSNameFromBuffer(data []byte, offset int) (DNSName, int, error) {
+	name, nOffset, err := DecodeDomainNameFromBuffer(data, offset)
+	if err != nil {
+		return DNSName{}, -1, fmt.Errorf("NewDNSNameFromBuffer error: %s", err)
+	}
+	dn := DNSName{
+		DomainName: name,
+		WiredBytes: data[offset:nOffset],
+	}
+	return dn, nOffset, nil
+}
+
+func NewDNSNameFromWiredBytes(data []byte) *DNSName {
+	name := DecodeDomainName(data)
+	dn := &DNSName{
+		DomainName: name,
+		WiredBytes: data,
+	}
+	return dn
+}
+
+func (dn *DNSName) Length() int {
+	return len(dn.WiredBytes)
+}
+
+func (dn *DNSName) String() string {
+	return dn.DomainName
+}
+
+func (dn *DNSName) Equal(other *DNSName) bool {
+	if dn.DomainName == other.DomainName {
+		return true
+	}
+	return false
+}
+
+func (dn *DNSName) Encode() []byte {
+	return dn.WiredBytes
+}
+
+func (dn *DNSName) EncodeToBuffer(buffer []byte) (int, error) {
+	encodedLen := len(dn.WiredBytes)
+	if len(buffer) < encodedLen {
+		return -1, fmt.Errorf(
+			"EncodeToBuffer error: buffer is too small, require %d byte size, but got %d",
+			encodedLen, len(buffer))
+	}
+	copy(buffer, dn.WiredBytes)
+	return encodedLen, nil
+}
+
+func (dn *DNSName) DecodeFromBuffer(data []byte, offset int) (int, error) {
+	name, nOffset, err := DecodeDomainNameFromBuffer(data, offset)
+	if err != nil {
+		return -1, fmt.Errorf("DecodeFromBuffer error: %s", err)
+	}
+	dn.DomainName = name
+	dn.WiredBytes = data[offset:nOffset]
+	return nOffset, nil
+}
+
 func GetDomainNameWireLen(name *string) int {
 	nameLength := len(*name)
 	if (*name)[nameLength-1] == '.' {
@@ -85,7 +169,7 @@ func GetUpperDomainName(name *string) string {
 func GetQueryQuestionName(qry DNSMessage) []string {
 	nList := make([]string, len(qry.Question))
 	for i := 0; i < len(qry.Question); i++ {
-		name := strings.ToLower(qry.Question[0].Name)
+		name := strings.ToLower(qry.Question[0].Name.DomainName)
 		nList[i] = name
 	}
 	return nList
@@ -164,10 +248,6 @@ func EncodeDomainNameToBuffer(name *string, buffer []byte) (int, error) {
 	return encodedLen, nil
 }
 
-const (
-	NamePointerFlag = 0xC0
-)
-
 // DecodeDomainName 解码域名，其接受字节切片，并返回解码后域名。
 // 返回的域名为*相对域名*，即不以'.'结尾。
 // 若域名为根域名，则返回"."
@@ -187,6 +267,7 @@ func DecodeDomainName(data []byte) string {
 	}
 }
 
+// DecodeDomainNameFromDNSBuffer 从 DNS 报文中解码域名。
 // DecodeDomainNameFromDNSBuffer 从 DNS 报文中解码域名。
 //   - 其接收参数为 DNS 报文 和 域名的偏移量，
 //   - 返回值为 解码后的域名, 解码后的偏移量 及 报错信息。
@@ -251,6 +332,18 @@ func CountDomainNameLabels(name *string) int {
 	return labelNum + 1
 }
 
+// # <character-string>
+//
+// [ RFC 1035 ] 规定了 DNS 字符串的相关定义。
+// DNS 字符串是一系列字符的序列，其编码格式为：字符串长度 + 字符串内容。
+// 字符串长度为一个字节，表示字符串的长度，字符串内容为字符串的实际内容。
+// 长度字节为0时，表示空字符串，长度最大为255，即 DNS 字符串最大长度为255。
+
+// GetDomainNameWireLen 返回域名的 编码格式长度。
+//   - 其接收参数为 域名字符串 的指针，
+//   - 返回值为域名的 编码格式长度。
+//
+// 可以接收绝对域名及相对域名，所有域名均以绝对域名的长度计算。
 // GetCharacterStrWireLen 返回字符串的 编码格式长度。
 func GetCharacterStrWireLen(cStr *string) int {
 	strLen := len(*cStr)

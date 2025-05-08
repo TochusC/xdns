@@ -67,7 +67,7 @@ var ExperiVec = AttackVector{
 	// CNAMETrap
 	CNAMEChainNum: 0,
 	// ReferrerTrap
-	NSRRNum: 5,
+	NSRRNum: 0,
 
 	// NSECTrap
 	IsNSEC:    true,
@@ -200,16 +200,16 @@ func (m *KeyTrapManager) SignSection(section []dns.DNSResourceRecord) []dns.DNSR
 		if rr.Type == dns.DNSRRTypeRRSIG {
 			continue
 		}
-		rid := rr.Name + rr.Type.String() + rr.Class.String()
+		rid := rr.Name.DomainName + rr.Type.String() + rr.Class.String()
 		rMap[rid] = append(rMap[rid], rr)
 	}
 	for _, rrset := range rMap {
 		// SigJam攻击向量：CollidedSigNum
 		// 生成 错误RRSIG 记录
-		uName := dns.GetUpperDomainName(&rrset[0].Name)
+		uName := dns.GetUpperDomainName(&rrset[0].Name.DomainName)
 		dMat := m.GetDNSSECMaterial(uName)
 
-		if len(strings.Split(rrset[0].Name, ".")) == 3 && rrset[0].Name[0:1] == "w" {
+		if len(strings.Split(rrset[0].Name.DomainName, ".")) == 3 && rrset[0].Name.DomainName[0:1] == "w" {
 			for i := 0; i < m.AttackVec.CollidedSigNum+m.AttackVec.CollidedSigForRR; i++ {
 				wRRSIG := xperi.GenerateRandomRRRRSIG(
 					rrset,
@@ -252,7 +252,7 @@ func (m *KeyTrapManager) SignSection(section []dns.DNSResourceRecord) []dns.DNSR
 			}
 		}
 
-		for i := 1; i <= m.AttackVec.Invalid_SIG_ZSK_PairNum-m.AttackVec.SIGPairDecreaseFactor*len(strings.Split(rrset[0].Name, ".")); i++ {
+		for i := 1; i <= m.AttackVec.Invalid_SIG_ZSK_PairNum-m.AttackVec.SIGPairDecreaseFactor*len(strings.Split(rrset[0].Name.DomainName, ".")); i++ {
 			keytag := dMat.ZSKTag - i
 			for j := 0; j < m.AttackVec.InvalidCollidedSigNum; j++ {
 				wRRSIG := xperi.GenerateRandomRRRRSIG(
@@ -278,16 +278,16 @@ func (m *KeyTrapManager) SignSection(section []dns.DNSResourceRecord) []dns.DNSR
 //   - rrset []dns.DNSResourceRecord，RR 集合
 func (m *KeyTrapManager) SignRRSet(rrset []dns.DNSResourceRecord) dns.DNSResourceRecord {
 	var uName string
-	if len(strings.Split(rrset[0].Name, ".")) == 2 {
+	if len(strings.Split(rrset[0].Name.DomainName, ".")) == 2 {
 		if rrset[0].Type == dns.DNSRRTypeNSEC ||
 			rrset[0].Type == dns.DNSRRTypeNS ||
 			rrset[0].Type == dns.DNSRRTypeNSEC3 {
-			uName = rrset[0].Name
+			uName = rrset[0].Name.DomainName
 		} else {
-			uName = dns.GetUpperDomainName(&rrset[0].Name)
+			uName = dns.GetUpperDomainName(&rrset[0].Name.DomainName)
 		}
 	} else {
-		uName = dns.GetUpperDomainName(&rrset[0].Name)
+		uName = dns.GetUpperDomainName(&rrset[0].Name.DomainName)
 	}
 
 	dMat := m.GetDNSSECMaterial(uName)
@@ -366,8 +366,6 @@ func (m *KeyTrapManager) CreateDNSSECMaterial(zName string) DNSSECMaterial {
 
 	kskRecord, kskPriv := xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.Algo, dns.DNSKEYFlagSecureEntryPoint)
 	kskTag := xperi.CalculateKeyTag(*kskRecord.RData.(*dns.DNSRDATADNSKEY))
-	kskRecord, kskPriv = xperi.GenerateRRDNSKEY(zName, m.DNSSECConf.Algo, dns.DNSKEYFlagSecureEntryPoint)
-	kskTag = xperi.CalculateKeyTag(*kskRecord.RData.(*dns.DNSRDATADNSKEY))
 
 	return DNSSECMaterial{
 		ZSKTag: int(zskTag),
@@ -405,7 +403,7 @@ func (m *KeyTrapManager) GetDNSSECMaterial(zName string) DNSSECMaterial {
 func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) error {
 	// 提取查询类型和查询名称
 	qType := qry.Question[0].Type
-	qName := strings.ToLower(qry.Question[0].Name)
+	qName := strings.ToLower(qry.Question[0].Name.DomainName)
 	dMat := m.GetDNSSECMaterial(qName)
 
 	if qType == dns.DNSRRTypeDNSKEY {
@@ -419,7 +417,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 					*dMat.ZSKRecord.RData.(*dns.DNSRDATADNSKEY),
 				)
 				rr := dns.DNSResourceRecord{
-					Name:  qName,
+					Name:  *dns.NewDNSName(qName),
 					Type:  dns.DNSRRTypeDNSKEY,
 					Class: dns.DNSClassIN,
 					TTL:   86400,
@@ -448,7 +446,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 					i,
 				)
 				rr := dns.DNSResourceRecord{
-					Name:  qName,
+					Name:  *dns.NewDNSName(qName),
 					Type:  dns.DNSRRTypeDNSKEY,
 					Class: dns.DNSClassIN,
 					TTL:   86400,
@@ -476,7 +474,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 						*dMat.KSKRecord.RData.(*dns.DNSRDATADNSKEY),
 					)
 					rr := dns.DNSResourceRecord{
-						Name:  qName,
+						Name:  *dns.NewDNSName(qName),
 						Type:  dns.DNSRRTypeDNSKEY,
 						Class: dns.DNSClassIN,
 						TTL:   86400,
@@ -493,7 +491,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 						*dMat.KSKRecord.RData.(*dns.DNSRDATADNSKEY),
 					)
 					rr := dns.DNSResourceRecord{
-						Name:  qName,
+						Name:  *dns.NewDNSName(qName),
 						Type:  dns.DNSRRTypeDNSKEY,
 						Class: dns.DNSClassIN,
 						TTL:   86400,
@@ -530,7 +528,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 					offset := rTag - tTag
 					wKSK := xperi.GenerateDNSKEYWithTag(rKSK, int(offset))
 					rr := dns.DNSResourceRecord{
-						Name:  qName,
+						Name:  *dns.NewDNSName(qName),
 						Type:  dns.DNSRRTypeDNSKEY,
 						Class: dns.DNSClassIN,
 						TTL:   86400,
@@ -553,7 +551,7 @@ func (m *KeyTrapManager) EstablishToC(qry dns.DNSMessage, resp *dns.DNSMessage) 
 			)
 			rkey.Flags = m.AttackVec.RandomDNSKEYFlag
 			rr := dns.DNSResourceRecord{
-				Name:  qName,
+				Name:  *dns.NewDNSName(qName),
 				Type:  dns.DNSRRTypeDNSKEY,
 				Class: dns.DNSClassIN,
 				TTL:   86400,
@@ -731,7 +729,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 	}
 
 	// 将可能启用0x20混淆的查询名称转换为小写
-	qName := strings.ToLower(qry.Question[0].Name)
+	qName := strings.ToLower(qry.Question[0].Name.DomainName)
 	qType := qry.Question[0].Type
 	qClass := qry.Question[0].Class
 
@@ -752,7 +750,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 				// NS Amplification攻击向量：NSRRNum
 				for i := 1; i <= r.AttackVector.NSRRNum; i++ {
 					rr := dns.DNSResourceRecord{
-						Name:  qName,
+						Name:  *dns.NewDNSName(qName),
 						Type:  dns.DNSRRTypeNS,
 						Class: dns.DNSClassIN,
 						TTL:   86400,
@@ -761,7 +759,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 					}
 					resp.Authority = append(resp.Authority, rr)
 					rra := dns.DNSResourceRecord{
-						Name:  fmt.Sprintf("ns%d.%s", i, qName),
+						Name:  *dns.NewDNSName(fmt.Sprintf("ns%d.%s", i, qName)),
 						Type:  dns.DNSRRTypeA,
 						Class: dns.DNSClassIN,
 						TTL:   86400,
@@ -776,7 +774,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 				resp.Additional = r.DNSSECManager.SignSection(resp.Additional)
 				SOARDATA.MName = "ns1." + qName
 				soa := dns.DNSResourceRecord{
-					Name:  qName,
+					Name:  *dns.NewDNSName(qName),
 					Type:  dns.DNSRRTypeSOA,
 					Class: dns.DNSClassIN,
 					TTL:   86400,
@@ -802,7 +800,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 			}
 		} else if len(qLables) == 3 {
 			rra := dns.DNSResourceRecord{
-				Name:  qName,
+				Name:  *dns.NewDNSName(qName),
 				Type:  dns.DNSRRTypeA,
 				Class: dns.DNSClassIN,
 				TTL:   86400,
@@ -851,7 +849,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 				}
 
 				rr := dns.DNSResourceRecord{
-					Name:  qName,
+					Name:  *dns.NewDNSName(qName),
 					Type:  dns.DNSRRTypeCNAME,
 					Class: dns.DNSClassIN,
 					TTL:   86400,
@@ -881,7 +879,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 							TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
 						}
 						rr := dns.DNSResourceRecord{
-							Name:  fmt.Sprintf("0%d.", randInt+i-1) + upperName,
+							Name:  *dns.NewDNSName(fmt.Sprintf("0%d.", randInt+i-1) + upperName),
 							Type:  dns.DNSRRTypeNSEC,
 							Class: dns.DNSClassIN,
 							TTL:   86400,
@@ -895,7 +893,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 						TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
 					}
 					rr := dns.DNSResourceRecord{
-						Name:  fmt.Sprintf("0%d.", randInt+r.AttackVector.NSECRRNum) + upperName,
+						Name:  *dns.NewDNSName(fmt.Sprintf("0%d.", randInt+r.AttackVector.NSECRRNum) + upperName),
 						Type:  dns.DNSRRTypeNSEC,
 						Class: dns.DNSClassIN,
 						TTL:   86400,
@@ -910,7 +908,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 							return []byte{}, err
 						}
 						rr := dns.DNSResourceRecord{
-							Name:  qName,
+							Name:  *dns.NewDNSName(qName),
 							Type:  dns.DNSRRTypeA,
 							Class: dns.DNSClassIN,
 							TTL:   86400,
@@ -920,7 +918,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 						resp.Answer = append(resp.Answer, rr)
 					} else {
 						rr := dns.DNSResourceRecord{
-							Name:  qName,
+							Name:  *dns.NewDNSName(qName),
 							Type:  dns.DNSRRTypeA,
 							Class: dns.DNSClassIN,
 							TTL:   86400,
@@ -934,7 +932,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 		case dns.DNSRRTypeNS:
 			// 生成 NS 记录
 			rr := dns.DNSResourceRecord{
-				Name:  qName,
+				Name:  *dns.NewDNSName(qName),
 				Type:  dns.DNSRRTypeNS,
 				Class: dns.DNSClassIN,
 				TTL:   86400,
@@ -943,7 +941,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 			}
 			resp.Answer = append(resp.Answer, rr)
 			rra := dns.DNSResourceRecord{
-				Name:  qName,
+				Name:  *dns.NewDNSName(qName),
 				Type:  dns.DNSRRTypeA,
 				Class: dns.DNSClassIN,
 				TTL:   86400,
@@ -964,7 +962,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 					TXT: string(rRDATA),
 				}
 				rr := dns.DNSResourceRecord{
-					Name:  qName,
+					Name:  *dns.NewDNSName(qName),
 					Type:  dns.DNSRRTypeTXT,
 					Class: dns.DNSClassIN,
 					TTL:   86400,
@@ -980,7 +978,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 					TXT: r.AttackVector.RandomString,
 				}
 				rr := dns.DNSResourceRecord{
-					Name:  qName,
+					Name:  *dns.NewDNSName(qName),
 					Type:  dns.DNSRRTypeTXT,
 					Class: dns.DNSClassIN,
 					TTL:   86400,
@@ -1000,7 +998,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 				Minimum: 86400,
 			}
 			soa := dns.DNSResourceRecord{
-				Name:  qName,
+				Name:  *dns.NewDNSName(qName),
 				Type:  dns.DNSRRTypeSOA,
 				Class: dns.DNSClassIN,
 				TTL:   86400,
@@ -1022,7 +1020,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 				TXT: txt,
 			}
 			rr := dns.DNSResourceRecord{
-				Name:  fmt.Sprintf("txt%d.", i) + upperName,
+				Name:  *dns.NewDNSName(fmt.Sprintf("txt%d.", i) + upperName),
 				Type:  dns.DNSRRTypeTXT,
 				Class: dns.DNSClassIN,
 				TTL:   86400,
@@ -1049,7 +1047,7 @@ func (r *KeyTrapResponser) Response(connInfo xdns.ConnectionInfo) ([]byte, error
 			TypeBitMaps:    []dns.DNSType{dns.DNSRRTypeA},
 		}
 		rr = dns.DNSResourceRecord{
-			Name:  upperName,
+			Name:  *dns.NewDNSName(upperName),
 			Type:  dns.DNSRRTypeNSEC,
 			Class: dns.DNSClassIN,
 			TTL:   86400,
@@ -1166,7 +1164,7 @@ func InitMaterial(name string, algo dns.DNSSECAlgorithm, kskPublic, kskPriv []by
 	}
 
 	zskRR := dns.DNSResourceRecord{
-		Name:  name,
+		Name:  *dns.NewDNSName(name),
 		Type:  dns.DNSRRTypeDNSKEY,
 		Class: dns.DNSClassIN,
 		TTL:   86400,
@@ -1189,7 +1187,7 @@ func InitMaterial(name string, algo dns.DNSSECAlgorithm, kskPublic, kskPriv []by
 	}
 
 	kskRR := dns.DNSResourceRecord{
-		Name:  name,
+		Name:  *dns.NewDNSName(name),
 		Type:  dns.DNSRRTypeDNSKEY,
 		Class: dns.DNSClassIN,
 		TTL:   86400,

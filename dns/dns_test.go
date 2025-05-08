@@ -105,7 +105,7 @@ func TestDNSHeaderDecodeFromBuffer(t *testing.T) {
 
 // 待测试的 DNSQuestion 对象。
 var testedDNSQuestion = DNSQuestion{
-	Name:  "www.example.com",
+	Name:  *NewDNSName("www.example.com"),
 	Type:  DNSRRTypeA,
 	Class: DNSClassIN,
 }
@@ -176,7 +176,7 @@ func TestDNSQuestionDecodeFromBuffer(t *testing.T) {
 		t.Errorf(" function DNSQuestionDecodeFromBuffer() failed:\ngot:%d\nexpected: %d",
 			offset, len(testedDNSQuestionEncoded))
 	}
-	if decodedDNSQuestion != testedDNSQuestion {
+	if !decodedDNSQuestion.Equal(testedDNSQuestion) {
 		t.Errorf(" function DNSQuestionDecodeFromBuffer() failed:\ngot:\n%v\nexpected:\n%v",
 			decodedDNSQuestion, testedDNSQuestion)
 	}

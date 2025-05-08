@@ -46,13 +46,13 @@ func (d *DullResponser) Response(connInfo ConnectionInfo) ([]byte, error) {
 	resp := InitNXDOMAIN(qry)
 
 	// 将可能启用0x20混淆的查询名称转换为小写
-	qName := strings.ToLower(qry.Question[0].Name)
+	qName := strings.ToLower(qry.Question[0].Name.DomainName)
 
 	// 如果查询类型为 A，则回复 A 记录
 	if qry.Question[0].Type == dns.DNSRRTypeA {
 		resp.Answer = []dns.DNSResourceRecord{
 			{
-				Name:  qName,
+				Name:  *dns.NewDNSName(qName),
 				Type:  qry.Question[0].Type,
 				Class: qry.Question[0].Class,
 				TTL:   3600,
@@ -190,11 +190,11 @@ func (d *DNSSECResponser) Response(connInfo ConnectionInfo) (dns.DNSMessage, err
 	// 如果查询类型为 A，则回复 A 记录
 	if qType == dns.DNSRRTypeA {
 		// 将可能启用0x20混淆的查询名称转换为小写
-		qName := strings.ToLower(qry.Question[0].Name)
+		qName := strings.ToLower(qry.Question[0].Name.DomainName)
 
 		// 生成 A 记录
 		rr := dns.DNSResourceRecord{
-			Name:  qName,
+			Name:  *dns.NewDNSName(qName),
 			Type:  dns.DNSRRTypeA,
 			Class: dns.DNSClassIN,
 			TTL:   86400,
@@ -280,7 +280,7 @@ type CryptoMaterial struct {
 // 目前尚未实现 规范化排序 功能，需要确保传入回复信息中的记录已经按照规范化排序，
 // 否则会导致签名失败。
 func EnableDNSSEC(qry dns.DNSMessage, resp *dns.DNSMessage, dConf DNSSECConfig, dMap *sync.Map) {
-	qName := strings.ToLower(qry.Question[0].Name)
+	qName := strings.ToLower(qry.Question[0].Name.DomainName)
 	upperName := dns.GetUpperDomainName(&qName)
 	// 获取 DNSSEC 材料
 	dMat := GetDNSSECMaterial(upperName, dMap, dConf)
@@ -321,7 +321,7 @@ func SignSection(section dns.DNSResponseSection, crypto CryptoMaterial) []dns.DN
 		if rr.Type == dns.DNSRRTypeRRSIG {
 			continue
 		}
-		rid := rr.Name + rr.Type.String() + rr.Class.String()
+		rid := rr.Name.DomainName + rr.Type.String() + rr.Class.String()
 		rMap[rid] = append(rMap[rid], rr)
 	}
 	for _, rrset := range rMap {
@@ -400,7 +400,7 @@ func GetDNSSECMaterial(zName string, dMap *sync.Map, dConf DNSSECConfig) DNSSECM
 func EstablishCoT(qry dns.DNSMessage, resp *dns.DNSMessage, dConf DNSSECConfig, dMap *sync.Map) error {
 	// 提取查询类型和查询名称
 	qType := qry.Question[0].Type
-	qName := strings.ToLower(qry.Question[0].Name)
+	qName := strings.ToLower(qry.Question[0].Name.DomainName)
 	rrset := []dns.DNSResourceRecord{}
 
 	if qType == dns.DNSRRTypeDNSKEY {

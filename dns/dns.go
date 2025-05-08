@@ -90,7 +90,7 @@ type DNSQuestionSection []DNSQuestion
 
 // DNSQuestion 表示DNS查询的问题记录
 type DNSQuestion struct {
-	Name  string
+	Name  DNSName
 	Type  DNSType
 	Class DNSClass
 }
@@ -122,12 +122,16 @@ type DNSResponseSection []DNSResourceRecord
 // DNSResourceRecord 表示 DNS 资源记录。
 // 设置RDLen为0时，将根据RData的实际大小进行编码。
 type DNSResourceRecord struct {
-	Name  string
+	Name  DNSName
 	Type  DNSType
 	Class DNSClass
 	TTL   uint32
 	RDLen uint16
 	RData DNSRRRDATA
+
+	// 静态rdata(设置该值将使得Encode不再实时解码Rdata，而是直接使用该静态值)
+	IsStatic     bool
+	Static_Rdata []byte
 }
 
 // DNSMessage 相关方法定义
@@ -172,7 +176,7 @@ func (dnsMessage *DNSMessage) Equal(other *DNSMessage) bool {
 		return false
 	}
 	for i, question := range dnsMessage.Question {
-		if question != other.Question[i] {
+		if question.Equal(other.Question[i]) != true {
 			return false
 		}
 	}
@@ -180,7 +184,7 @@ func (dnsMessage *DNSMessage) Equal(other *DNSMessage) bool {
 		return false
 	}
 	for i, answer := range dnsMessage.Answer {
-		if answer != other.Answer[i] {
+		if answer.Equal(other.Answer[i]) != true {
 			return false
 		}
 	}
@@ -188,7 +192,7 @@ func (dnsMessage *DNSMessage) Equal(other *DNSMessage) bool {
 		return false
 	}
 	for i, authority := range dnsMessage.Authority {
-		if authority != other.Authority[i] {
+		if authority.Equal(other.Authority[i]) != true {
 			return false
 		}
 	}
@@ -196,7 +200,7 @@ func (dnsMessage *DNSMessage) Equal(other *DNSMessage) bool {
 		return false
 	}
 	for i, additional := range dnsMessage.Additional {
-		if additional != other.Additional[i] {
+		if additional.Equal(other.Additional[i]) != true {
 			return false
 		}
 	}
@@ -469,17 +473,28 @@ func (dnsHeader *DNSHeader) DecodeFromBuffer(buffer []byte, offset int) (int, er
 
 // Size 返回DNS消息 的 问题部分的大小。
 func (dnsQuestion *DNSQuestion) Size() int {
-	return GetDomainNameWireLen(&dnsQuestion.Name) + 4
+	return dnsQuestion.Name.Length() + 4
 }
-
-// String 以“易读的形式”返回DNS消息 的 问题部分的字符串表示。
 func (dnsQuestion *DNSQuestion) String() string {
 	return fmt.Sprint(
 		"### DNS Question ###\n",
-		"Name: ", dnsQuestion.Name, "\n",
+		"Name: ", dnsQuestion.Name.String(), "\n",
 		"Type: ", dnsQuestion.Type, "\n",
 		"Class: ", dnsQuestion.Class,
 	)
+}
+
+func (dnsQuestion *DNSQuestion) Equal(other DNSQuestion) bool {
+	if !dnsQuestion.Name.Equal(&other.Name) {
+		return false
+	}
+	if dnsQuestion.Type != other.Type {
+		return false
+	}
+	if dnsQuestion.Class != other.Class {
+		return false
+	}
+	return true
 }
 
 // Size 返回DNS消息 的 问题部分的大小。
@@ -509,7 +524,7 @@ func (section DNSQuestionSection) Equal(other DNSQuestionSection) bool {
 		return false
 	}
 	for i, question := range section {
-		if question != other[i] {
+		if !question.Equal(other[i]) {
 			return false
 		}
 	}
@@ -554,7 +569,7 @@ func (section DNSQuestionSection) EncodeToBuffer(buffer []byte) (int, error) {
 func (dnsQuestion *DNSQuestion) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
 	var err error
 	// 解码域名
-	dnsQuestion.Name, offset, err = DecodeDomainNameFromBuffer(buffer, offset)
+	dnsQuestion.Name, offset, err = NewDNSNameFromBuffer(buffer, offset)
 	if err != nil {
 		return -1, fmt.Errorf("method DNSQuestion DecodeFromBuffer failed: decode Name failed.\n%s", err)
 	}
@@ -568,7 +583,7 @@ func (dnsQuestion *DNSQuestion) DecodeFromBuffer(buffer []byte, offset int) (int
 // Encode 将 DNS消息的问题部分 编码到 字节切片 中。
 func (dnsQuestion *DNSQuestion) Encode() []byte {
 	buffer := make([]byte, dnsQuestion.Size())
-	offset, err := EncodeDomainNameToBuffer(&dnsQuestion.Name, buffer)
+	offset, err := dnsQuestion.Name.EncodeToBuffer(buffer)
 	if err != nil {
 		panic(fmt.Sprintf("method DNSQuestion Encode failed: encode Question name failed\n%s\n", err))
 	}
@@ -586,7 +601,7 @@ func (dnsQuestion *DNSQuestion) EncodeToBuffer(buffer []byte) (int, error) {
 	if len(buffer) < dqSize {
 		return -1, fmt.Errorf("EncodeToBuffer failed: buffer length %d is less than DNSQuestion size %d", len(buffer), dqSize)
 	}
-	_, err := EncodeDomainNameToBuffer(&dnsQuestion.Name, buffer)
+	_, err := dnsQuestion.Name.EncodeToBuffer(buffer)
 	if err != nil {
 		return -1, err
 	}
@@ -619,7 +634,7 @@ func (responseSection DNSResponseSection) Equal(other DNSResponseSection) bool {
 		return false
 	}
 	for i, record := range responseSection {
-		if record != other[i] {
+		if !record.Equal(other[i]) {
 			return false
 		}
 	}
@@ -675,10 +690,35 @@ func (responseSection DNSResponseSection) DecodeFromBuffer(buffer []byte, offset
 	return offset, nil
 }
 
+// DNSResourceRecord 相关方法定义
+
 // Size 返回 DNS 资源记录的*准确*大小。
 //   - RDLength 字段可由用户自行设置一个错误的值。
 func (rr *DNSResourceRecord) Size() int {
-	return GetDomainNameWireLen(&rr.Name) + 10 + rr.RData.Size()
+	return rr.Name.Length() + 10 + rr.RData.Size()
+}
+
+func (rr *DNSResourceRecord) Equal(other DNSResourceRecord) bool {
+	if !rr.Name.Equal(&other.Name) {
+		return false
+	}
+	if rr.Type != other.Type {
+		return false
+	}
+	if rr.Class != other.Class {
+		return false
+	}
+	if rr.TTL != other.TTL {
+		return false
+	}
+	if rr.RDLen != other.RDLen {
+		return false
+	}
+	if !rr.RData.Equal(other.RData) {
+		return false
+	}
+	// 其他字段相等
+	return true
 }
 
 // String 以*易读的形式*返回 DNS 资源记录的字符串表示。
@@ -686,7 +726,7 @@ func (rr *DNSResourceRecord) Size() int {
 func (rr *DNSResourceRecord) String() string {
 	return fmt.Sprint(
 		"### DNS Resource Record ###\n",
-		"Name:", rr.Name, "\n",
+		"Name:", rr.Name.String(), "\n",
 		"Type:", rr.Type, "\n",
 		"Class:", rr.Class, "\n",
 		"TTL:", rr.TTL, "\n",
@@ -695,21 +735,53 @@ func (rr *DNSResourceRecord) String() string {
 	)
 }
 
+// EncodeStaticRData 将 DNS 资源记录的 RData 编码为静态数据。
+//   - 该方法将 RData 的编码结果存储在 Static_Rdata 字段中。
+//   - 同时将 IsStatic 字段设置为 true 并修改 RDLen 字段。
+func (rr *DNSResourceRecord) EncodeStaticRData() {
+	rr.IsStatic = true
+	rr.Static_Rdata = rr.RData.Encode()
+	rr.RDLen = uint16(len(rr.Static_Rdata))
+}
+
+// DecodeStaticRData 将 DNS 资源记录的静态数据解码为 RData。
+//   - 该方法将 Static_Rdata 字段的值解码为 RData。
+//   - 同时将 IsStatic 字段设置为 false 并修改 RDLen 字段。
+//   - 该方法在调用时，Static_Rdata 字段必须已经被设置为有效的静态数据。
+func (rr *DNSResourceRecord) DecodeStaticRData() {
+	rr.IsStatic = false
+
+	rr.RData = DNSRRRDATAFactory(rr.Type)
+	rr.RDLen = uint16(len(rr.Static_Rdata))
+
+	rr.RData.DecodeFromBuffer(rr.Static_Rdata, 0, int(rr.RDLen))
+}
+
 // Encode 方法编码 DNS 资源记录至返回的字节切片中。
 // - 其返回值为 编码后的字节切片 。
 func (rr *DNSResourceRecord) Encode() []byte {
 	byteArray := make([]byte, rr.Size())
-	offset, err := EncodeDomainNameToBuffer(&rr.Name, byteArray)
+	offset, err := rr.Name.EncodeToBuffer(byteArray)
 	if err != nil {
 		panic(fmt.Sprintf("method DNSResourceRecord Encode failed: encode Name failed\n%s\n", err))
 	}
 	binary.BigEndian.PutUint16(byteArray[offset:], uint16(rr.Type))
 	binary.BigEndian.PutUint16(byteArray[offset+2:], uint16(rr.Class))
 	binary.BigEndian.PutUint32(byteArray[offset+4:], rr.TTL)
-	rdLen, err := rr.RData.EncodeToBuffer(byteArray[offset+10:])
-	if err != nil {
-		panic(fmt.Sprintf("method DNSResourceRecord Encode failed: encode RDATA failed\n%s\n", err))
+
+	rdLen := int(rr.RDLen)
+	if rr.IsStatic {
+		rdLen = len(rr.Static_Rdata)
+		copy(byteArray[offset+10:], rr.Static_Rdata)
+	} else {
+		var err error
+		rdLen, err = rr.RData.EncodeToBuffer(byteArray[offset+10:])
+		if err != nil {
+			panic(fmt.Sprintf("method DNSResourceRecord Encode failed: encode RDATA failed\n%s\n", err))
+		}
 	}
+
+	// 如果用户设置了 RDLen，则使用用户设置的值，否则使用编码后的长度。
 	if rr.RDLen == 0 {
 		binary.BigEndian.PutUint16(byteArray[offset+8:], uint16(rdLen))
 	} else {
@@ -724,7 +796,7 @@ func (rr *DNSResourceRecord) Encode() []byte {
 //
 // 如果出现错误，返回 -1 和 相应报错。
 func (rr *DNSResourceRecord) EncodeToBuffer(buffer []byte) (int, error) {
-	offset, err := EncodeDomainNameToBuffer(&rr.Name, buffer)
+	offset, err := rr.Name.EncodeToBuffer(buffer)
 	if err != nil {
 		return -1, err
 	}
@@ -752,11 +824,10 @@ func (rr *DNSResourceRecord) EncodeToBuffer(buffer []byte) (int, error) {
 func (rr *DNSResourceRecord) DecodeFromBuffer(buffer []byte, offset int) (int, error) {
 	var err error
 	// 解码域名
-	name, offset, err := DecodeDomainNameFromBuffer(buffer, offset)
+	rr.Name, offset, err = NewDNSNameFromBuffer(buffer, offset)
 	if err != nil {
 		return -1, err
 	}
-	rr.Name = name
 	// 解码类型
 	rr.Type = DNSType(binary.BigEndian.Uint16(buffer[offset:]))
 	// 解码类

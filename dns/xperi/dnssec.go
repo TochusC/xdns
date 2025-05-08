@@ -82,7 +82,7 @@ func GenerateRRDNSKEY(
 	zName string, algo dns.DNSSECAlgorithm, flag dns.DNSKEYFlag) (dns.DNSResourceRecord, []byte) {
 	rdata, privKey := GenerateRDATADNSKEY(algo, flag)
 	rr := dns.DNSResourceRecord{
-		Name:  zName,
+		Name:  *dns.NewDNSName(zName),
 		Type:  dns.DNSRRTypeDNSKEY,
 		Class: dns.DNSClassIN,
 		TTL:   86400,
@@ -117,7 +117,7 @@ func GenerateRDATARRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgorithm,
 	rrsig := dns.DNSRDATARRSIG{
 		TypeCovered: rrSet[0].Type,
 		Algorithm:   algo,
-		Labels:      uint8(dns.CountDomainNameLabels(&rrSet[0].Name)),
+		Labels:      uint8(dns.CountDomainNameLabels(&rrSet[0].Name.DomainName)),
 		OriginalTTL: rrSet[0].TTL,
 		Expiration:  expiration,
 		Inception:   inception,
@@ -206,7 +206,7 @@ func GenerateRDATADS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDi
 
 	// 2. 构建明文
 	pText := make([]byte, dns.GetDomainNameWireLen(&oName)+kRDATA.Size())
-	offset, err := dns.EncodeDomainNameToBuffer(&oName, pText)
+	offset, err := dns.NewDNSName(oName).EncodeToBuffer(pText)
 	if err != nil {
 		panic(fmt.Sprintf("failed to write domain name: %s", err))
 	}
@@ -252,7 +252,7 @@ func GenerateRDATADS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDi
 func GenerateRRDS(oName string, kRDATA dns.DNSRDATADNSKEY, dType dns.DNSSECDigestType) dns.DNSResourceRecord {
 	rdata := GenerateRDATADS(oName, kRDATA, dType)
 	rr := dns.DNSResourceRecord{
-		Name:  oName,
+		Name:  *dns.NewDNSName(oName),
 		Type:  dns.DNSRRTypeDS,
 		Class: dns.DNSClassIN,
 		TTL:   86400,
@@ -398,7 +398,7 @@ func GenerateRandomRDATARRSIG(rrSet []dns.DNSResourceRecord, algo dns.DNSSECAlgo
 	return dns.DNSRDATARRSIG{
 		TypeCovered: rrSet[0].Type,
 		Algorithm:   algo,
-		Labels:      uint8(dns.CountDomainNameLabels(&rrSet[0].Name)),
+		Labels:      uint8(dns.CountDomainNameLabels(&rrSet[0].Name.DomainName)),
 		OriginalTTL: 8,
 		Expiration:  expiration,
 		Inception:   inception,
@@ -462,7 +462,7 @@ func GenerateRandomRDATADS(oName string, keytag int, algo dns.DNSSECAlgorithm, d
 func GenerateRandomRRDS(oName string, keytag int, algo dns.DNSSECAlgorithm, dType dns.DNSSECDigestType) dns.DNSResourceRecord {
 	rdata := GenerateRandomRDATADS(oName, keytag, algo, dType)
 	rr := dns.DNSResourceRecord{
-		Name:  oName,
+		Name:  *dns.NewDNSName(oName),
 		Type:  dns.DNSRRTypeDS,
 		Class: dns.DNSClassIN,
 		TTL:   86400,
