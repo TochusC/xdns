@@ -17,7 +17,7 @@ func IsPseudoRR(rr *DNSResourceRecord) bool {
 // NewDNSRROPT creates a new DNS Resource Record OPT
 func NewDNSRROPT(udpsize int, ttl int, rdata *DNSRDATAOPT) *DNSResourceRecord {
 	return &DNSResourceRecord{
-		Name:  ".",
+		Name:  *NewDNSName("."),
 		Type:  41,
 		Class: DNSClass(udpsize),
 		TTL:   uint32(ttl),
@@ -41,16 +41,17 @@ func NewPseudoRR(rr *DNSResourceRecord) PseudoRR {
 
 // DNSRROPT is a DNS Resource Record OPT
 // See RFC 6891
-//  +------------+--------------+------------------------------+
-//  | Field Name | Field Type   | Description                  |
-//  +------------+--------------+------------------------------+
-//  | NAME       | domain name  | MUST be 0 (root domain)      |
-//  | TYPE       | u_int16_t    | OPT (41)                     |
-//  | CLASS      | u_int16_t    | requestor’s UDP payload size |
-//  | TTL        | u_int32_t    | extended RCODE and flags     |
-//  | RDLEN      | u_int16_t    | length of all RDATA          |
-//  | RDATA      | octet stream | {attribute,value} pairs      |
-//  +------------+--------------+------------------------------+
+//
+//	+------------+--------------+------------------------------+
+//	| Field Name | Field Type   | Description                  |
+//	+------------+--------------+------------------------------+
+//	| NAME       | domain name  | MUST be 0 (root domain)      |
+//	| TYPE       | u_int16_t    | OPT (41)                     |
+//	| CLASS      | u_int16_t    | requestor’s UDP payload size |
+//	| TTL        | u_int32_t    | extended RCODE and flags     |
+//	| RDLEN      | u_int16_t    | length of all RDATA          |
+//	| RDATA      | octet stream | {attribute,value} pairs      |
+//	+------------+--------------+------------------------------+
 type DNSRROPT struct {
 	rr *DNSResourceRecord
 }

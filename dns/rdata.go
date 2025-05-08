@@ -45,7 +45,7 @@ type DNSRRRDATA interface {
 	//
 	Equal(DNSRRRDATA) bool
 
-	/* TODO: Mais 等到真正需要时再实现吧？
+	/* TODO:
 	// Masterlize 方法以*Master File中的ASCII表示*返回对应 资源记录 RDATA 部分的 字符串表示。
 	//  - 其返回值为 RDATA 部分的字符串表示。
 	Masterlize() string

@@ -91,7 +91,7 @@ func TestEncodeDomainNameToBuffer(t *testing.T) {
 func TestCanonicalSortRRSet(t *testing.T) {
 	rrSet := []DNSResourceRecord{
 		{
-			Name:  "example.com.",
+			Name:  *NewDNSName("example.com."),
 			Type:  DNSRRTypeA,
 			Class: DNSClassIN,
 			TTL:   7200,
@@ -100,7 +100,7 @@ func TestCanonicalSortRRSet(t *testing.T) {
 			},
 		},
 		{
-			Name:  "example.com.",
+			Name:  *NewDNSName("example.com."),
 			Type:  DNSRRTypeA,
 			Class: DNSClassIN,
 			TTL:   7200,
@@ -109,7 +109,7 @@ func TestCanonicalSortRRSet(t *testing.T) {
 			},
 		},
 		{
-			Name:  "example.com.",
+			Name:  *NewDNSName("example.com."),
 			Type:  DNSRRTypeA,
 			Class: DNSClassIN,
 			TTL:   7200,
@@ -140,14 +140,14 @@ func TestCompressDNSMessage(t *testing.T) {
 		},
 		Question: []DNSQuestion{
 			{
-				Name:  "example.com",
+				Name:  *NewDNSName("example.com."),
 				Type:  DNSRRTypeA,
 				Class: DNSClassIN,
 			},
 		},
 		Answer: []DNSResourceRecord{
 			{
-				Name:  "example.com",
+				Name:  *NewDNSName("example.com."),
 				Type:  DNSRRTypeA,
 				Class: DNSClassIN,
 				TTL:   7200,
@@ -156,7 +156,7 @@ func TestCompressDNSMessage(t *testing.T) {
 				},
 			},
 			{
-				Name:  "example.com",
+				Name:  *NewDNSName("example.com."),
 				Type:  DNSRRTypeA,
 				Class: DNSClassIN,
 				TTL:   7200,
@@ -165,7 +165,7 @@ func TestCompressDNSMessage(t *testing.T) {
 				},
 			},
 			{
-				Name:  "example.com",
+				Name:  *NewDNSName("example.com."),
 				Type:  DNSRRTypeA,
 				Class: DNSClassIN,
 				TTL:   7200,

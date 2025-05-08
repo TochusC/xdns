@@ -74,7 +74,7 @@ func TestGenenrateDNSKEYWithTag(t *testing.T) {
 func TestGenerateRandomRRSIG(t *testing.T) {
 	rrSet := []dns.DNSResourceRecord{
 		{
-			Name:  "example.com.",
+			Name:  *dns.NewDNSName("example.com."),
 			Type:  dns.DNSRRTypeA,
 			Class: dns.DNSClassIN,
 			TTL:   7200,
@@ -123,7 +123,7 @@ func TestCalculateKeyTag(t *testing.T) {
 func TestGenerateRRSIG(t *testing.T) {
 	rrSet := []dns.DNSResourceRecord{
 		{
-			Name:  "example.com.",
+			Name:  *dns.NewDNSName("example.com."),
 			Type:  dns.DNSRRTypeA,
 			Class: dns.DNSClassIN,
 			TTL:   7200,
